@@ -143,7 +143,7 @@ if not st.session_state["autenticado"]:
 # =========================================================
 # BARRA LATERAL (MENU E PERFIL)
 # =========================================================
-st.sidebar.title("📦 WMS Nuvem")
+st.sidebar.title("📦 WMS Pnet")
 st.sidebar.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
 st.sidebar.write(f"🛡️ **Perfil:** `{st.session_state['perfil']}`")
 
