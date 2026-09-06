@@ -31,21 +31,29 @@ if "linhas_congeladas" not in st.session_state:
     st.session_state["linhas_congeladas"] = pd.DataFrame()
 
 # =========================================================
-# CARREGAMENTO DA BASE DE DADOS
+# CARREGAMENTO SEGURO DA BASE DE DADOS (BLINDADO PARA MOBILE)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=2)
 def carregar_dados():
+    colunas_padrao = ["Cod. Interno", "Cod. Fabricante", "Descrição", "Rua", "Box", "Altura", "Garantia", "Caixa", "Data Atualização"]
     if os.path.exists(ARQUIVO_EXCEL):
         try:
-            df = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
+            try:
+                df = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
+            except Exception:
+                df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
+            
+            df = df.fillna("")
+            for col in colunas_padrao:
+                if col not in df.columns:
+                    df[col] = ""
+            return df
         except Exception:
-            df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
-        return df.fillna("")
+            return pd.DataFrame(columns=colunas_padrao)
     else:
-        columns = ["Cod. Interno", "Cod. Fabricante", "Descrição", "Rua", "Box", "Altura", "Garantia", "Caixa", "Data Atualização"]
-        return pd.DataFrame(columns=columns)
+        return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
@@ -64,24 +72,22 @@ if not st.session_state["autenticado"]:
     st.title("📦 WMS - Acesso ao Sistema")
     st.subheader("🔒 Identificação do Usuário")
 
-    col_login, _ = st.columns([1, 1])
-    with col_login:
-        usuario_input = st.selectbox("Selecione o Perfil / Usuário", list(USUARIOS.keys()))
-        senha_input = st.text_input("Senha de Acesso", type="password")
+    usuario_input = st.selectbox("Selecione o Perfil / Usuário", list(USUARIOS.keys()))
+    senha_input = st.text_input("Senha de Acesso", type="password")
 
-        if st.button("🔑 Entrar no WMS", use_container_width=True):
-            user_info = USUARIOS.get(usuario_input.lower())
-            if user_info and user_info["senha"] == senha_input:
-                st.session_state["autenticado"] = True
-                st.session_state["usuario_logado"] = usuario_input.capitalize()
-                st.session_state["perfil"] = user_info["perfil"]
-                st.rerun()
-            else:
-                st.error("❌ Senha incorreta!")
+    if st.button("🔑 Entrar no WMS", use_container_width=True):
+        user_info = USUARIOS.get(usuario_input.lower())
+        if user_info and user_info["senha"] == senha_input:
+            st.session_state["autenticado"] = True
+            st.session_state["usuario_logado"] = usuario_input.capitalize()
+            st.session_state["perfil"] = user_info["perfil"]
+            st.rerun()
+        else:
+            st.error("❌ Senha incorreta!")
     st.stop()
 
 # =========================================================
-# BARRA LATERAL (NAV / PERFIL)
+# BARRA LATERAL (MENU E PERFIL)
 # =========================================================
 st.sidebar.title("📦 WMS Nuvem")
 st.sidebar.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
@@ -101,7 +107,7 @@ opcoes_menu = [
 opcao_menu = st.sidebar.radio("Navegação Principal", opcoes_menu)
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Sair do Sistema"):
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
     st.session_state["autenticado"] = False
     st.session_state["usuario_logado"] = ""
     st.session_state["perfil"] = ""
@@ -114,51 +120,51 @@ def validar_admin():
     return True
 
 # =========================================================
-# TELA 1: PESQUISA E VALIDAÇÃO (GERAL)
+# TELA 1: PESQUISA E VALIDAÇÃO (OTIMIZADA PARA CELULAR)
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
-    st.header("🔍 Pesquisa, Validação e Congelamento de Endereços")
-    st.subheader("📌 Painel de Operação")
+    st.header("🔍 Pesquisa e Validação")
 
-    q_busca = st.text_input("1️⃣ PESQUISA: Digite Cód. Interno, Fabricante, Descrição, Rua, Box ou Altura:").strip().upper()
-    q_valid = st.text_input("2️⃣ VALIDAÇÃO: Bipe ou digite o Cód. Fabricante para conferência:").strip().upper()
+    q_busca = st.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
+    q_valid = st.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
 
-    df_res = df_base.copy()
-    if q_busca:
-        mask = (
-            df_res["Cod. Interno"].astype(str).str.upper().str.contains(q_busca) |
-            df_res["Cod. Fabricante"].astype(str).str.upper().str.contains(q_busca) |
-            df_res["Descrição"].astype(str).str.upper().str.contains(q_busca) |
-            df_res["Rua"].astype(str).str.upper().str.contains(q_busca) |
-            df_res["Box"].astype(str).str.upper().str.contains(q_busca) |
-            df_res["Altura"].astype(str).str.upper().str.contains(q_busca)
-        )
-        df_res = df_res[mask]
+    df_res = st.session_state.get("df_base", carregar_dados()).copy()
 
-    col_btn1, col_btn2, col_btn3 = st.columns(3)
-    with col_btn1:
-        if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
-            if not df_res.empty:
-                st.session_state["linhas_congeladas"] = pd.concat([st.session_state["linhas_congeladas"], df_res]).drop_duplicates()
-                st.success("Linhas congeladas com sucesso!")
-    with col_btn2:
-        if st.button("🔥 DESCONGELAR / LIMPAR ACÚMULO", use_container_width=True):
-            st.session_state["linhas_congeladas"] = pd.DataFrame()
-            st.info("Acúmulo congelado limpo!")
-    with col_btn3:
-        st.write("🖨️ Para imprimir o acúmulo use `Ctrl + P`")
+    if q_busca and not df_res.empty:
+        try:
+            mask = (
+                df_res["Cod. Interno"].astype(str).str.upper().str.contains(q_busca, regex=False) |
+                df_res["Cod. Fabricante"].astype(str).str.upper().str.contains(q_busca, regex=False) |
+                df_res["Descrição"].astype(str).str.upper().str.contains(q_busca, regex=False) |
+                df_res["Rua"].astype(str).str.upper().str.contains(q_busca, regex=False) |
+                df_res["Box"].astype(str).str.upper().str.contains(q_busca, regex=False) |
+                df_res["Altura"].astype(str).str.upper().str.contains(q_busca, regex=False)
+            )
+            df_res = df_res[mask]
+        except Exception as e:
+            st.error(f"Erro ao filtrar busca: {e}")
 
-    tab1, tab2 = st.tabs([f"🔎 Resultado da Busca ({len(df_res)})", f"❄️ Linhas Acumuladas / Congeladas ({len(st.session_state['linhas_congeladas'])})"])
+    if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
+        if not df_res.empty:
+            congeladas_atuais = st.session_state.get("linhas_congeladas", pd.DataFrame())
+            st.session_state["linhas_congeladas"] = pd.concat([congeladas_atuais, df_res]).drop_duplicates()
+            st.success("Linhas congeladas com sucesso!")
+
+    if st.button("🔥 LIMPAR LINHAS CONGELADAS", use_container_width=True):
+        st.session_state["linhas_congeladas"] = pd.DataFrame()
+        st.info("Acúmulo de linhas limpo!")
+
+    tab1, tab2 = st.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(st.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
         st.dataframe(df_res, use_container_width=True)
 
     with tab2:
-        st.dataframe(st.session_state["linhas_congeladas"], use_container_width=True)
+        st.dataframe(st.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
 
     if q_valid:
         if not df_res.empty and (df_res["Cod. Fabricante"].astype(str).str.upper() == q_valid).any():
-            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} pertence à busca realizada!")
+            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} pertence à busca!")
         else:
             st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO na lista atual!")
 
@@ -174,19 +180,21 @@ elif opcao_menu == "🚚 Mover Produto":
         novo_box = st.text_input("Novo Box *").strip().upper()
         nova_altura = st.text_input("Nova Altura *").strip().upper()
         
-        btn_mover = st.form_submit_button("Confirmar Movimentação")
+        btn_mover = st.form_submit_button("Confirmar Movimentação", use_container_width=True)
         
         if btn_mover:
             if not cod_mover or not nova_rua or not novo_box or not nova_altura:
                 st.warning("Preencha todos os campos obrigatórios (*).")
             else:
-                idx = df_base[(df_base["Cod. Interno"].str.upper() == cod_mover) | (df_base["Cod. Fabricante"].str.upper() == cod_mover)].index
+                df_atual = st.session_state["df_base"]
+                idx = df_atual[(df_atual["Cod. Interno"].str.upper() == cod_mover) | (df_atual["Cod. Fabricante"].str.upper() == cod_mover)].index
                 if not idx.empty:
-                    df_base.loc[idx, "Rua"] = nova_rua
-                    df_base.loc[idx, "Box"] = novo_box
-                    df_base.loc[idx, "Altura"] = nova_altura
-                    df_base.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    salvar_dados(df_base)
+                    df_atual.loc[idx, "Rua"] = nova_rua
+                    df_atual.loc[idx, "Box"] = novo_box
+                    df_atual.loc[idx, "Altura"] = nova_altura
+                    df_atual.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    salvar_dados(df_atual)
+                    st.session_state["df_base"] = df_atual
                     st.success("✅ Produto movimentado com sucesso!")
                 else:
                     st.error("Produto não localizado no estoque.")
@@ -198,21 +206,19 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
     st.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
         with st.form("form_cadastrar"):
-            c1, c2 = st.columns(2)
-            cod_int = c1.text_input("Cód. Interno *").strip().upper()
-            cod_fab = c2.text_input("Cód. Fabricante *").strip().upper()
+            cod_int = st.text_input("Cód. Interno *").strip().upper()
+            cod_fab = st.text_input("Cód. Fabricante *").strip().upper()
             desc = st.text_input("Descrição Completa *").strip().upper()
+            rua = st.text_input("Rua *").strip().upper()
+            box = st.text_input("Box *").strip().upper()
+            altura = st.text_input("Altura *").strip().upper()
             
-            e1, e2, e3 = st.columns(3)
-            rua = e1.text_input("Rua *").strip().upper()
-            box = e2.text_input("Box *").strip().upper()
-            altura = e3.text_input("Altura *").strip().upper()
-            
-            btn_cad = st.form_submit_button("Cadastrar / Ocupar")
+            btn_cad = st.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
             if btn_cad:
                 if not (cod_int and cod_fab and desc and rua and box and altura):
                     st.warning("Preencha todos os campos obrigatórios (*).")
                 else:
+                    df_atual = st.session_state["df_base"]
                     novo_registro = {
                         "Cod. Interno": cod_int,
                         "Cod. Fabricante": cod_fab,
@@ -224,9 +230,9 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                         "Caixa": "",
                         "Data Atualização": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
-                    df_base = pd.concat([df_base, pd.DataFrame([novo_registro])], ignore_index=True)
-                    salvar_dados(df_base)
-                    st.session_state["df_base"] = df_base
+                    df_atual = pd.concat([df_atual, pd.DataFrame([novo_registro])], ignore_index=True)
+                    salvar_dados(df_atual)
+                    st.session_state["df_base"] = df_atual
                     st.success("✅ Novo produto cadastrado/endereçado com sucesso!")
 
 # =========================================================
@@ -237,15 +243,16 @@ elif opcao_menu == "🧹 Limpar Endereço":
     if validar_admin():
         with st.form("form_limpar"):
             cod_limp = st.text_input("Código Interno ou Fabricante a Desocupar *").strip().upper()
-            btn_limp = st.form_submit_button("Desocupar Endereço")
+            btn_limp = st.form_submit_button("Desocupar Endereço", use_container_width=True)
             
             if btn_limp:
-                idx = df_base[(df_base["Cod. Interno"].str.upper() == cod_limp) | (df_base["Cod. Fabricante"].str.upper() == cod_limp)].index
+                df_atual = st.session_state["df_base"]
+                idx = df_atual[(df_atual["Cod. Interno"].str.upper() == cod_limp) | (df_atual["Cod. Fabricante"].str.upper() == cod_limp)].index
                 if not idx.empty:
-                    df_base.loc[idx, ["Rua", "Box", "Altura"]] = ""
-                    df_base.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    salvar_dados(df_base)
-                    st.session_state["df_base"] = df_base
+                    df_atual.loc[idx, ["Rua", "Box", "Altura"]] = ""
+                    df_atual.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    salvar_dados(df_atual)
+                    st.session_state["df_base"] = df_atual
                     st.success("✅ Endereço desocupado com sucesso!")
                 else:
                     st.error("Produto não localizado no estoque.")
@@ -256,7 +263,7 @@ elif opcao_menu == "🧹 Limpar Endereço":
 elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
     st.header("📥 Importação e Atualização da Base em Massa")
     if validar_admin():
-        st.write("Suba o arquivo Excel (`.xlsx`) com o mapeamento completo do estoque para atualizar a base de dados do WMS em tempo real durante a reunião.")
+        st.write("Faça o upload do arquivo Excel (`.xlsx`) com o mapeamento completo do estoque para atualizar o WMS em tempo real.")
         
         arquivo_enviado = st.file_uploader("Selecione a planilha Excel mapeada", type=["xlsx"])
         
@@ -276,7 +283,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                     salvar_dados(df_novo)
                     st.session_state["df_base"] = df_novo
                     st.balloons()
-                    st.success("✅ Base de dados do WMS atualizada com sucesso! O novo mapeamento já está ativo para consulta e bipagem.")
+                    st.success("✅ Base de dados do WMS atualizada com sucesso! O novo mapeamento já está ativo para uso.")
             except Exception as e:
                 st.error(f"Erro ao processar o arquivo Excel: {e}")
 
@@ -285,7 +292,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
 # =========================================================
 elif opcao_menu == "💾 Backup e Histórico":
     st.header("💾 Backup e Exportação da Base")
-    st.write("Baixe uma cópia da base de estoque atual em Excel:")
+    st.write("Baixe uma cópia da base de estoque atualizada:")
     
     if os.path.exists(ARQUIVO_EXCEL):
         with open(ARQUIVO_EXCEL, "rb") as f:
@@ -293,5 +300,6 @@ elif opcao_menu == "💾 Backup e Histórico":
                 label="📥 Baixar Base_Estoque.xlsx Atualizada",
                 data=f,
                 file_name=f"Backup_WMS_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
