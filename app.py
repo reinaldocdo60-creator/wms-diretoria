@@ -30,6 +30,12 @@ if "perfil" not in st.session_state:
 if "linhas_congeladas" not in st.session_state:
     st.session_state["linhas_congeladas"] = pd.DataFrame()
 
+# Garante que os campos de texto comecem vazios ao abrir
+if "q_busca" not in st.session_state:
+    st.session_state["q_busca"] = ""
+if "q_valid" not in st.session_state:
+    st.session_state["q_valid"] = ""
+
 # =========================================================
 # CARREGAMENTO SEGURO DA BASE DE DADOS (BLINDADO PARA MOBILE)
 # =========================================================
@@ -46,7 +52,6 @@ def carregar_dados():
                 df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             
             df = df.fillna("")
-            # Padroniza os nomes das colunas para maiúsculas
             df.columns = [str(c).strip().upper() for c in df.columns]
             return df
         except Exception:
@@ -110,6 +115,8 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
     st.session_state["autenticado"] = False
     st.session_state["usuario_logado"] = ""
     st.session_state["perfil"] = ""
+    st.session_state["q_busca"] = ""
+    st.session_state["q_valid"] = ""
     st.rerun()
 
 def validar_admin():
@@ -119,10 +126,18 @@ def validar_admin():
     return True
 
 # =========================================================
-# TELA 1: PESQUISA E VALIDAÇÃO (OTIMIZADA PARA OS NOMES DA SUA PLANILHA)
+# TELA 1: PESQUISA E VALIDAÇÃO
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     st.header("🔍 Pesquisa e Validação")
+
+    # Botão rápido para limpar a pesquisa atual se o usuário quiser
+    col_l1, col_l2 = st.columns([4, 1])
+    with col_l2:
+        if st.button("🧹 Limpar Busca", use_container_width=True):
+            st.session_state["q_busca"] = ""
+            st.session_state["q_valid"] = ""
+            st.rerun()
 
     q_busca = st.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
     q_valid = st.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
@@ -130,6 +145,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     df_res = st.session_state.get("df_base", carregar_dados()).copy()
     df_res.columns = [str(c).strip().upper() for c in df_res.columns]
 
+    # Se a busca estiver vazia, podemos mostrar a tabela vazia ou completa (aqui configurado para mostrar tudo se vazio, ou limpo se preferir)
     if q_busca and not df_res.empty:
         try:
             col_cod_int = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
@@ -154,6 +170,9 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             df_res = df_res[mask]
         except Exception as e:
             st.error(f"Erro ao filtrar busca: {e}")
+    elif not q_busca:
+        # Se não digitou nada na busca, exibe vazio para não travar a tela com milhares de linhas
+        df_res = df_res.iloc[0:0]
 
     if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
         if not df_res.empty:
@@ -175,10 +194,14 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     if q_valid:
         col_validacao = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
-        if not df_res.empty and col_validacao in df_res.columns and (df_res[col_validacao].astype(str).str.upper() == q_valid).any():
-            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} pertence à busca!")
+        # Valida contra toda a base para garantir precisão mesmo se a busca estiver restrita
+        df_total = st.session_state.get("df_base", carregar_dados())
+        df_total.columns = [str(c).strip().upper() for c in df_total.columns]
+        
+        if not df_total.empty and col_validacao in df_total.columns and (df_total[col_validacao].astype(str).str.upper() == q_valid).any():
+            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
         else:
-            st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO na lista atual!")
+            st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
 
 # =========================================================
 # TELA 2: MOVER PRODUTO
