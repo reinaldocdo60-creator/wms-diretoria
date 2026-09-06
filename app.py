@@ -13,13 +13,56 @@ st.set_page_config(
 )
 
 # =========================================================
-# GERENCIAMENTO DE USUÁRIOS E SENHAS
+# GERENCIAMENTO DE USUÁRIOS E SENHAS (COM PERSISTÊNCIA NO EXCEL)
 # =========================================================
-if "usuarios_db" not in st.session_state:
-    st.session_state["usuarios_db"] = {
+ARQUIVO_EXCEL = "Base_Estoque.xlsx"
+
+def carregar_usuarios():
+    # Padrão inicial caso o arquivo ou aba não existam
+    usuarios_padrao = {
         "operador": {"senha": "op123", "perfil": "OPERADOR"},
         "admin": {"senha": "admin123", "perfil": "ADMIN"}
     }
+    if os.path.exists(ARQUIVO_EXCEL):
+        try:
+            df_user = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Usuarios", dtype=str)
+            df_user = df_user.fillna("")
+            db = {}
+            for _, row in df_user.iterrows():
+                user = str(row["USUARIO"]).strip().lower()
+                senha = str(row["SENHA"]).strip()
+                perfil = str(row["PERFIL"]).strip().upper()
+                if user:
+                    db[user] = {"senha": senha, "perfil": perfil}
+            return db if db else usuarios_padrao
+        except Exception:
+            return usuarios_padrao
+    return usuarios_padrao
+
+def salvar_usuarios(db):
+    try:
+        # Prepara a lista para salvar em formato de tabela
+        lista_user = []
+        for user, info in db.items():
+            lista_user.append({
+                "USUARIO": user,
+                "SENHA": info["senha"],
+                "PERFIL": info["perfil"]
+            })
+        df_user = pd.DataFrame(lista_user)
+        
+        # Salva mantendo a aba 'Base_Dados' intacta e criando/atualizando a aba 'Usuarios'
+        if os.path.exists(ARQUIVO_EXCEL):
+            with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                df_user.to_excel(writer, sheet_name="Usuarios", index=False)
+        else:
+            with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
+                df_user.to_excel(writer, sheet_name="Usuarios", index=False)
+    except Exception as e:
+        st.error(f"Erro ao salvar usuários: {e}")
+
+if "usuarios_db" not in st.session_state:
+    st.session_state["usuarios_db"] = carregar_usuarios()
 
 # Inicialização da Sessão
 if "autenticado" not in st.session_state:
@@ -40,8 +83,6 @@ if "q_valid" not in st.session_state:
 # =========================================================
 # CARREGAMENTO SEGURO DA BASE DE DADOS (BLINDADO PARA MOBILE)
 # =========================================================
-ARQUIVO_EXCEL = "Base_Estoque.xlsx"
-
 @st.cache_data(ttl=2)
 def carregar_dados():
     colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "GARANTIA", "CAIXA", "DATA ATUALIZACAO"]
@@ -61,8 +102,14 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
+    # Preserva a aba de usuários ao salvar o estoque
+    db_atual = st.session_state["usuarios_db"]
+    lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
+    df_user = pd.DataFrame(lista_user)
+    
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
+        df_user.to_excel(writer, sheet_name="Usuarios", index=False)
     st.cache_data.clear()
 
 if "df_base" not in st.session_state:
@@ -96,7 +143,7 @@ if not st.session_state["autenticado"]:
 # =========================================================
 # BARRA LATERAL (MENU E PERFIL)
 # =========================================================
-st.sidebar.title("📦 WMS PONTONET")
+st.sidebar.title("📦 WMS Nuvem")
 st.sidebar.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
 st.sidebar.write(f"🛡️ **Perfil:** `{st.session_state['perfil']}`")
 
@@ -111,7 +158,6 @@ opcoes_menu = [
     "💾 Backup e Histórico"
 ]
 
-# Adiciona Gerenciar Usuários apenas se for ADMIN
 if st.session_state["perfil"] == "ADMIN":
     opcoes_menu.append("👥 Gerenciar Usuários")
 
@@ -357,7 +403,7 @@ elif opcao_menu == "💾 Backup e Histórico":
 elif opcao_menu == "👥 Gerenciar Usuários":
     st.header("👥 Gerenciamento de Colaboradores e Acessos")
     if validar_admin():
-        st.write("Adicione novos operadores ou remova acessos diretamente por aqui.")
+        st.write("Adicione novos operadores ou remova acessos. Os dados agora ficam salvos de forma permanente.")
         
         db = st.session_state["usuarios_db"]
         
@@ -385,7 +431,9 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     "senha": nova_senha,
                     "perfil": novo_perfil
                 }
-                st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado com sucesso!")
+                # Salva permanentemente na planilha
+                salvar_usuarios(st.session_state["usuarios_db"])
+                st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
                 st.rerun()
                 
         st.divider()
@@ -397,7 +445,9 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             if st.button("Excluir Usuário Selecionado", type="primary"):
                 if usuario_para_remover in st.session_state["usuarios_db"]:
                     del st.session_state["usuarios_db"][usuario_para_remover]
-                    st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido!")
+                    # Atualiza a planilha após a exclusão
+                    salvar_usuarios(st.session_state["usuarios_db"])
+                    st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
                     st.rerun()
         else:
             st.info("Não há outros usuários cadastrados para remoção.")
