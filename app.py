@@ -60,7 +60,7 @@ if escolha == "Sair":
     st.session_state["autenticado"] = False
     st.rerun()
 
-# --- CARREGAMENTO DA BASE DE DADOS (ARQUIVO ÚNICO) ---
+# --- CARREGAMENTO DA BASE DE DADOS ---
 ARQUIVO_BASE = "Base_Estoque.xlsx"
 
 def carregar_dados():
@@ -79,34 +79,33 @@ if escolha == "Consulta / Operação":
     
     df = carregar_dados()
     if df is not None and not df.empty:
-        # Campo de pesquisa rápida
-        pesquisa = st.text_input("🔍 Pesquisar por Código, Descrição, Endereço ou Fabricante:")
+        # Normaliza colunas para evitar erros de maiúscula/minúscula
+        df.columns = [str(col).strip().upper() for col in df.columns]
+        
+        # Barra de pesquisa rápida
+        pesquisa = st.text_input("🔍 Pesquisar por Código, Descrição ou Endereço:")
         
         if pesquisa:
-            # Filtro inteligente em todas as colunas convertidas para texto
             mask = df.astype(str).apply(lambda x: x.str.contains(pesquisa, case=False, na=False)).any(axis=1)
             df_resultado = df[mask]
-            st.info(f"Encontrados {len(df_resultado)} registros para a pesquisa.")
+            st.info(f"Encontrados {len(df_resultado)} registros.")
             st.dataframe(df_resultado, use_container_width=True)
         else:
-            st.write(f"Exibindo visão geral do estoque ({len(df)} itens totais):")
             st.dataframe(df, use_container_width=True)
     else:
-        st.warning(f"O arquivo '{ARQUIVO_BASE}' não foi encontrado ou está vazio. Vá até 'Atualizar Base (Admin)' para enviar a planilha.")
+        st.warning(f"O arquivo '{ARQUIVO_BASE}' não foi encontrado. Vá até 'Atualizar Base (Admin)' para enviar a planilha.")
 
 elif escolha == "Atualizar Base (Admin)":
     if st.session_state["perfil_atual"] != "ADMIN":
-        st.error("Acesso negado. Apenas administradores podem atualizar a base de dados.")
+        st.error("Acesso negado. Apenas administradores.")
     else:
         st.title("📂 Atualização em Massa da Base")
-        st.write("Faça o upload do novo arquivo Excel (`Base_Estoque.xlsx`) para atualizar o estoque com segurança.")
-        
         uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=["xlsx", "xls"])
         if uploaded_file is not None:
             try:
                 with open(ARQUIVO_BASE, "wb") as f:
                     f.write(uploaded_file.getbuffer())
-                st.success("Base de estoque atualizada com sucesso no servidor! As alterações já estão valendo para a operação.")
+                st.success("Base de estoque atualizada com sucesso!")
             except Exception as e:
                 st.error(f"Erro ao salvar o arquivo: {e}")
 
@@ -119,20 +118,19 @@ elif escolha == "Gerenciar Usuários":
         
         db = st.session_state["usuarios_db"]
         
-        # Exibir usuários atuais em uma tabela limpa
         dados_tabela = [{"Usuário": k, "Perfil": v["perfil"]} for k, v in db.items()]
         st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
         
         st.divider()
-        
         st.subheader("Cadastrar Novo Colaborador")
+        
         col1, col2, col3 = st.columns(3)
         with col1:
-            novo_usuario = st.text_input("Nome de Usuário (ex: joao.silva)").strip().lower()
+            novo_usuario = st.text_input("Nome de Usuário").strip().lower()
         with col2:
-            nova_senha = st.text_input("Senha Inicial", type="password")
+            nova_senha = st.text_input("Senha", type="password")
         with col3:
-            novo_perfil = st.selectbox("Perfil de Acesso", ["OPERADOR", "ADMIN"])
+            novo_perfil = st.selectbox("Perfil", ["OPERADOR", "ADMIN"])
         
         if st.button("Cadastrar Usuário", use_container_width=True):
             if not novo_usuario or not nova_senha:
@@ -151,13 +149,12 @@ elif escolha == "Gerenciar Usuários":
         st.subheader("Remover Usuário")
         
         usuarios_removiveis = [u for u in db.keys() if u != "admin"]
-        
         if usuarios_removiveis:
-            usuario_para_remover = st.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
+            usuario_para_remover = st.selectbox("Selecione o usuário", usuarios_removiveis)
             if st.button("Excluir Usuário Selecionado", type="primary"):
                 if usuario_para_remover in st.session_state["usuarios_db"]:
                     del st.session_state["usuarios_db"][usuario_para_remover]
-                    st.success(f"Usuário '{usuario_para_remover}' removido com sucesso!")
+                    st.success(f"Usuário '{usuario_para_remover}' removido!")
                     st.rerun()
         else:
-            st.info("Não há outros usuários cadastrados para remoção além do admin principal.")
+            st.info("Não há outros usuários cadastrados para remoção.")
