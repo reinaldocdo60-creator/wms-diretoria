@@ -41,7 +41,6 @@ def carregar_usuarios():
 
 def salvar_usuarios(db):
     try:
-        # Prepara a lista para salvar em formato de tabela
         lista_user = []
         for user, info in db.items():
             lista_user.append({
@@ -51,7 +50,6 @@ def salvar_usuarios(db):
             })
         df_user = pd.DataFrame(lista_user)
         
-        # Salva mantendo a aba 'Base_Dados' intacta e criando/atualizando a aba 'Usuarios'
         if os.path.exists(ARQUIVO_EXCEL):
             with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
                 df_user.to_excel(writer, sheet_name="Usuarios", index=False)
@@ -74,7 +72,6 @@ if "perfil" not in st.session_state:
 if "linhas_congeladas" not in st.session_state:
     st.session_state["linhas_congeladas"] = pd.DataFrame()
 
-# Garante que os campos de texto comecem vazios ao abrir
 if "q_busca" not in st.session_state:
     st.session_state["q_busca"] = ""
 if "q_valid" not in st.session_state:
@@ -102,7 +99,6 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
-    # Preserva a aba de usuários ao salvar o estoque
     db_atual = st.session_state["usuarios_db"]
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
@@ -143,7 +139,7 @@ if not st.session_state["autenticado"]:
 # =========================================================
 # BARRA LATERAL (MENU E PERFIL)
 # =========================================================
-st.sidebar.title("📦 WMS Pnet")
+st.sidebar.title("📦 WMS Nuvem")
 st.sidebar.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
 st.sidebar.write(f"🛡️ **Perfil:** `{st.session_state['perfil']}`")
 
@@ -403,12 +399,27 @@ elif opcao_menu == "💾 Backup e Histórico":
 elif opcao_menu == "👥 Gerenciar Usuários":
     st.header("👥 Gerenciamento de Colaboradores e Acessos")
     if validar_admin():
-        st.write("Adicione novos operadores ou remova acessos. Os dados agora ficam salvos de forma permanente.")
-        
         db = st.session_state["usuarios_db"]
         
         dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
         st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+        
+        st.divider()
+        st.subheader("🔑 Alterar Senha de Usuário")
+        
+        col_alt1, col_alt2 = st.columns(2)
+        with col_alt1:
+            usuario_para_alterar = st.selectbox("Selecione o usuário para alterar a senha", list(db.keys()), key="sel_alt_user")
+        with col_alt2:
+            nova_senha_input = st.text_input("Nova Senha", type="password", key="txt_nova_senha")
+            
+        if st.button("💾 Salvar Nova Senha", use_container_width=True):
+            if not nova_senha_input:
+                st.warning("Digite a nova senha.")
+            else:
+                db[usuario_para_alterar]["senha"] = nova_senha_input
+                salvar_usuarios(db)
+                st.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
         
         st.divider()
         st.subheader("Cadastrar Novo Colaborador")
@@ -431,7 +442,6 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     "senha": nova_senha,
                     "perfil": novo_perfil
                 }
-                # Salva permanentemente na planilha
                 salvar_usuarios(st.session_state["usuarios_db"])
                 st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
                 st.rerun()
@@ -445,7 +455,6 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             if st.button("Excluir Usuário Selecionado", type="primary"):
                 if usuario_para_remover in st.session_state["usuarios_db"]:
                     del st.session_state["usuarios_db"][usuario_para_remover]
-                    # Atualiza a planilha após a exclusão
                     salvar_usuarios(st.session_state["usuarios_db"])
                     st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
                     st.rerun()
