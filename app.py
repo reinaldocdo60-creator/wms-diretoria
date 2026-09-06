@@ -15,10 +15,11 @@ st.set_page_config(
 # =========================================================
 # GERENCIAMENTO DE USUÁRIOS E SENHAS
 # =========================================================
-USUARIOS = {
-    "operador": {"senha": "op123", "perfil": "OPERADOR"},
-    "admin": {"senha": "admin123", "perfil": "ADMIN"}
-}
+if "usuarios_db" not in st.session_state:
+    st.session_state["usuarios_db"] = {
+        "operador": {"senha": "op123", "perfil": "OPERADOR"},
+        "admin": {"senha": "admin123", "perfil": "ADMIN"}
+    }
 
 # Inicialização da Sessão
 if "autenticado" not in st.session_state:
@@ -76,11 +77,13 @@ if not st.session_state["autenticado"]:
     st.title("📦 WMS - Acesso ao Sistema")
     st.subheader("🔒 Identificação do Usuário")
 
-    usuario_input = st.selectbox("Selecione o Perfil / Usuário", list(USUARIOS.keys()))
+    usuarios_disponiveis = list(st.session_state["usuarios_db"].keys())
+    usuario_input = st.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
     senha_input = st.text_input("Senha de Acesso", type="password")
 
     if st.button("🔑 Entrar no WMS", use_container_width=True):
-        user_info = USUARIOS.get(usuario_input.lower())
+        db = st.session_state["usuarios_db"]
+        user_info = db.get(usuario_input.lower())
         if user_info and user_info["senha"] == senha_input:
             st.session_state["autenticado"] = True
             st.session_state["usuario_logado"] = usuario_input.capitalize()
@@ -108,6 +111,10 @@ opcoes_menu = [
     "💾 Backup e Histórico"
 ]
 
+# Adiciona Gerenciar Usuários apenas se for ADMIN
+if st.session_state["perfil"] == "ADMIN":
+    opcoes_menu.append("👥 Gerenciar Usuários")
+
 opcao_menu = st.sidebar.radio("Navegação Principal", opcoes_menu)
 
 st.sidebar.markdown("---")
@@ -131,7 +138,6 @@ def validar_admin():
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     st.header("🔍 Pesquisa e Validação")
 
-    # Botão rápido para limpar a pesquisa atual se o usuário quiser
     col_l1, col_l2 = st.columns([4, 1])
     with col_l2:
         if st.button("🧹 Limpar Busca", use_container_width=True):
@@ -145,7 +151,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     df_res = st.session_state.get("df_base", carregar_dados()).copy()
     df_res.columns = [str(c).strip().upper() for c in df_res.columns]
 
-    # Se a busca estiver vazia, podemos mostrar a tabela vazia ou completa (aqui configurado para mostrar tudo se vazio, ou limpo se preferir)
     if q_busca and not df_res.empty:
         try:
             col_cod_int = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
@@ -171,7 +176,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         except Exception as e:
             st.error(f"Erro ao filtrar busca: {e}")
     elif not q_busca:
-        # Se não digitou nada na busca, exibe vazio para não travar a tela com milhares de linhas
         df_res = df_res.iloc[0:0]
 
     if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
@@ -194,7 +198,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     if q_valid:
         col_validacao = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
-        # Valida contra toda a base para garantir precisão mesmo se a busca estiver restrita
         df_total = st.session_state.get("df_base", carregar_dados())
         df_total.columns = [str(c).strip().upper() for c in df_total.columns]
         
@@ -347,3 +350,54 @@ elif opcao_menu == "💾 Backup e Histórico":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
+
+# =========================================================
+# TELA 7: GERENCIAMENTO DE USUÁRIOS (ADMIN)
+# =========================================================
+elif opcao_menu == "👥 Gerenciar Usuários":
+    st.header("👥 Gerenciamento de Colaboradores e Acessos")
+    if validar_admin():
+        st.write("Adicione novos operadores ou remova acessos diretamente por aqui.")
+        
+        db = st.session_state["usuarios_db"]
+        
+        dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
+        st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+        
+        st.divider()
+        st.subheader("Cadastrar Novo Colaborador")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            novo_usuario = st.text_input("Nome de Usuário").strip().lower()
+        with col2:
+            nova_senha = st.text_input("Senha", type="password")
+        with col3:
+            novo_perfil = st.selectbox("Perfil", ["OPERADOR", "ADMIN"])
+        
+        if st.button("Cadastrar Usuário", use_container_width=True):
+            if not novo_usuario or not nova_senha:
+                st.warning("Preencha o usuário e a senha.")
+            elif novo_usuario in db:
+                st.error("Este usuário já existe!")
+            else:
+                st.session_state["usuarios_db"][novo_usuario] = {
+                    "senha": nova_senha,
+                    "perfil": novo_perfil
+                }
+                st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado com sucesso!")
+                st.rerun()
+                
+        st.divider()
+        st.subheader("Remover Usuário")
+        
+        usuarios_removiveis = [u for u in db.keys() if u != "admin"]
+        if usuarios_removiveis:
+            usuario_para_remover = st.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
+            if st.button("Excluir Usuário Selecionado", type="primary"):
+                if usuario_para_remover in st.session_state["usuarios_db"]:
+                    del st.session_state["usuarios_db"][usuario_para_remover]
+                    st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido!")
+                    st.rerun()
+        else:
+            st.info("Não há outros usuários cadastrados para remoção.")
