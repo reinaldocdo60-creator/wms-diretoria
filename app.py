@@ -60,47 +60,53 @@ if escolha == "Sair":
     st.session_state["autenticado"] = False
     st.rerun()
 
+# --- CARREGAMENTO DA BASE DE DADOS (ARQUIVO ÚNICO) ---
+ARQUIVO_BASE = "Base_Estoque.xlsx"
+
+def carregar_dados():
+    if os.path.exists(ARQUIVO_BASE):
+        try:
+            return pd.read_excel(ARQUIVO_BASE)
+        except Exception as e:
+            st.error(f"Erro ao ler o arquivo Excel: {e}")
+            return None
+    return None
+
 # --- ROTEAMENTO DAS TELAS ---
 
 if escolha == "Consulta / Operação":
     st.title("🔍 Consulta de Estoque e Operação")
-    st.write("Bem-vindo à tela de consultas, bipagem e movimentações do armazém.")
     
-    # Exemplo de verificação da base de dados local
-    arquivo_base = "Base_Estoque.xlsx"
-    if os.path.exists(arquivo_base):
-        try:
-            df = pd.read_excel(arquivo_base)
-            st.success(f"Base de dados carregada com sucesso! ({len(df)} registros)")
-            
-            # Campo de pesquisa rápida genérico
-            pesquisa = st.text_input("Pesquisar por Código, Descrição ou Endereço:")
-            if pesquisa:
-                # Filtro simples em todas as colunas de texto
-                mask = df.astype(str).apply(lambda x: x.str.contains(pesquisa, case=False, na=False)).any(axis=1)
-                df_resultado = df[mask]
-                st.dataframe(df_resultado, use_container_width=True)
-            else:
-                st.dataframe(df.head(50), use_container_width=True)
-        except Exception as e:
-            st.error(f"Erro ao ler o arquivo de estoque: {e}")
+    df = carregar_dados()
+    if df is not None and not df.empty:
+        # Campo de pesquisa rápida
+        pesquisa = st.text_input("🔍 Pesquisar por Código, Descrição, Endereço ou Fabricante:")
+        
+        if pesquisa:
+            # Filtro inteligente em todas as colunas convertidas para texto
+            mask = df.astype(str).apply(lambda x: x.str.contains(pesquisa, case=False, na=False)).any(axis=1)
+            df_resultado = df[mask]
+            st.info(f"Encontrados {len(df_resultado)} registros para a pesquisa.")
+            st.dataframe(df_resultado, use_container_width=True)
+        else:
+            st.write(f"Exibindo visão geral do estoque ({len(df)} itens totais):")
+            st.dataframe(df, use_container_width=True)
     else:
-        st.warning(f"O arquivo '{arquivo_base}' não foi encontrado no repositório. Por favor, faça o upload na aba de Admin.")
+        st.warning(f"O arquivo '{ARQUIVO_BASE}' não foi encontrado ou está vazio. Vá até 'Atualizar Base (Admin)' para enviar a planilha.")
 
 elif escolha == "Atualizar Base (Admin)":
     if st.session_state["perfil_atual"] != "ADMIN":
-        st.error("Acesso negado. Apenas administradores podem atualizar a base.")
+        st.error("Acesso negado. Apenas administradores podem atualizar a base de dados.")
     else:
         st.title("📂 Atualização em Massa da Base")
-        st.write("Faça o upload do novo arquivo Excel (`Base_Estoque.xlsx`) para atualizar o estoque do sistema.")
+        st.write("Faça o upload do novo arquivo Excel (`Base_Estoque.xlsx`) para atualizar o estoque com segurança.")
         
         uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=["xlsx", "xls"])
         if uploaded_file is not None:
             try:
-                # Salva o arquivo enviado substituindo o anterior
-                with open("Base_Estoque.xlsx", "wb") as f:
+                with open(ARQUIVO_BASE, "wb") as f:
                     f.write(uploaded_file.getbuffer())
-                st.success("Base de estoque atualizada com sucesso no servidor! As alterações já estão valendo.")
+                st.success("Base de estoque atualizada com sucesso no servidor! As alterações já estão valendo para a operação.")
             except Exception as e:
                 st.error(f"Erro ao salvar o arquivo: {e}")
 
@@ -109,7 +115,7 @@ elif escolha == "Gerenciar Usuários":
         st.error("Acesso negado.")
     else:
         st.title("👥 Gerenciamento de Colaboradores e Acessos")
-        st.write("Adicione novos operadores ou remova acessos diretamente por aqui, sem precisar ir ao GitHub.")
+        st.write("Adicione novos operadores ou remova acessos diretamente por aqui.")
         
         db = st.session_state["usuarios_db"]
         
@@ -144,7 +150,6 @@ elif escolha == "Gerenciar Usuários":
         st.divider()
         st.subheader("Remover Usuário")
         
-        # Lista de usuários removíveis (exceto o admin principal para evitar bloqueio)
         usuarios_removiveis = [u for u in db.keys() if u != "admin"]
         
         if usuarios_removiveis:
@@ -155,4 +160,4 @@ elif escolha == "Gerenciar Usuários":
                     st.success(f"Usuário '{usuario_para_remover}' removido com sucesso!")
                     st.rerun()
         else:
-            st.info("Não há outros usuários cadastrados para remoção.")
+            st.info("Não há outros usuários cadastrados para remoção além do admin principal.")
