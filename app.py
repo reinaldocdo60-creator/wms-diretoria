@@ -37,7 +37,7 @@ ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 
 @st.cache_data(ttl=2)
 def carregar_dados():
-    colunas_padrao = ["Cod. Interno", "Cod. Fabricante", "Descrição", "Rua", "Box", "Altura", "Garantia", "Caixa", "Data Atualização"]
+    colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "GARANTIA", "CAIXA", "DATA ATUALIZACAO"]
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             try:
@@ -46,9 +46,8 @@ def carregar_dados():
                 df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             
             df = df.fillna("")
-            for col in colunas_padrao:
-                if col not in df.columns:
-                    df[col] = ""
+            # Padroniza os nomes das colunas para maiúsculas
+            df.columns = [str(c).strip().upper() for c in df.columns]
             return df
         except Exception:
             return pd.DataFrame(columns=colunas_padrao)
@@ -120,7 +119,7 @@ def validar_admin():
     return True
 
 # =========================================================
-# TELA 1: PESQUISA E VALIDAÇÃO (OTIMIZADA PARA CELULAR)
+# TELA 1: PESQUISA E VALIDAÇÃO (OTIMIZADA PARA OS NOMES DA SUA PLANILHA)
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     st.header("🔍 Pesquisa e Validação")
@@ -129,17 +128,29 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     q_valid = st.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
 
     df_res = st.session_state.get("df_base", carregar_dados()).copy()
+    df_res.columns = [str(c).strip().upper() for c in df_res.columns]
 
     if q_busca and not df_res.empty:
         try:
-            mask = (
-                df_res["Cod. Interno"].astype(str).str.upper().str.contains(q_busca, regex=False) |
-                df_res["Cod. Fabricante"].astype(str).str.upper().str.contains(q_busca, regex=False) |
-                df_res["Descrição"].astype(str).str.upper().str.contains(q_busca, regex=False) |
-                df_res["Rua"].astype(str).str.upper().str.contains(q_busca, regex=False) |
-                df_res["Box"].astype(str).str.upper().str.contains(q_busca, regex=False) |
-                df_res["Altura"].astype(str).str.upper().str.contains(q_busca, regex=False)
-            )
+            col_cod_int = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
+            col_cod_fab = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
+            col_desc = "DESCRICAO" if "DESCRICAO" in df_res.columns else "DESCRIÇÃO"
+            
+            mask = pd.Series(False, index=df_res.index)
+            
+            if col_cod_int in df_res.columns:
+                mask = mask | df_res[col_cod_int].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if col_cod_fab in df_res.columns:
+                mask = mask | df_res[col_cod_fab].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if col_desc in df_res.columns:
+                mask = mask | df_res[col_desc].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if "RUA" in df_res.columns:
+                mask = mask | df_res["RUA"].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if "BOX" in df_res.columns:
+                mask = mask | df_res["BOX"].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if "ALTURA" in df_res.columns:
+                mask = mask | df_res["ALTURA"].astype(str).str.upper().str.contains(q_busca, regex=False)
+                
             df_res = df_res[mask]
         except Exception as e:
             st.error(f"Erro ao filtrar busca: {e}")
@@ -163,7 +174,8 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         st.dataframe(st.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
 
     if q_valid:
-        if not df_res.empty and (df_res["Cod. Fabricante"].astype(str).str.upper() == q_valid).any():
+        col_validacao = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
+        if not df_res.empty and col_validacao in df_res.columns and (df_res[col_validacao].astype(str).str.upper() == q_valid).any():
             st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} pertence à busca!")
         else:
             st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO na lista atual!")
@@ -187,12 +199,16 @@ elif opcao_menu == "🚚 Mover Produto":
                 st.warning("Preencha todos os campos obrigatórios (*).")
             else:
                 df_atual = st.session_state["df_base"]
-                idx = df_atual[(df_atual["Cod. Interno"].str.upper() == cod_mover) | (df_atual["Cod. Fabricante"].str.upper() == cod_mover)].index
+                col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
+                col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
+                
+                idx = df_atual[(df_atual[col_ci].str.upper() == cod_mover) | (df_atual[col_cf].str.upper() == cod_mover)].index
                 if not idx.empty:
-                    df_atual.loc[idx, "Rua"] = nova_rua
-                    df_atual.loc[idx, "Box"] = novo_box
-                    df_atual.loc[idx, "Altura"] = nova_altura
-                    df_atual.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    df_atual.loc[idx, "RUA"] = nova_rua
+                    df_atual.loc[idx, "BOX"] = novo_box
+                    df_atual.loc[idx, "ALTURA"] = nova_altura
+                    if "DATA ATUALIZACAO" in df_atual.columns:
+                        df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
                     st.session_state["df_base"] = df_atual
                     st.success("✅ Produto movimentado com sucesso!")
@@ -220,15 +236,15 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                 else:
                     df_atual = st.session_state["df_base"]
                     novo_registro = {
-                        "Cod. Interno": cod_int,
-                        "Cod. Fabricante": cod_fab,
-                        "Descrição": desc,
-                        "Rua": rua,
-                        "Box": box,
-                        "Altura": altura,
-                        "Garantia": "",
-                        "Caixa": "",
-                        "Data Atualização": datetime.now().strftime("%Y-%m-%d %H:%M")
+                        "CODINTERNO": cod_int,
+                        "CODFAB": cod_fab,
+                        "DESCRICAO": desc,
+                        "RUA": rua,
+                        "BOX": box,
+                        "ALTURA": altura,
+                        "GARANTIA": "",
+                        "CAIXA": "",
+                        "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
                     df_atual = pd.concat([df_atual, pd.DataFrame([novo_registro])], ignore_index=True)
                     salvar_dados(df_atual)
@@ -247,10 +263,14 @@ elif opcao_menu == "🧹 Limpar Endereço":
             
             if btn_limp:
                 df_atual = st.session_state["df_base"]
-                idx = df_atual[(df_atual["Cod. Interno"].str.upper() == cod_limp) | (df_atual["Cod. Fabricante"].str.upper() == cod_limp)].index
+                col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
+                col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
+                
+                idx = df_atual[(df_atual[col_ci].str.upper() == cod_limp) | (df_atual[col_cf].str.upper() == cod_limp)].index
                 if not idx.empty:
-                    df_atual.loc[idx, ["Rua", "Box", "Altura"]] = ""
-                    df_atual.loc[idx, "Data Atualização"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    df_atual.loc[idx, ["RUA", "BOX", "ALTURA"]] = ""
+                    if "DATA ATUALIZACAO" in df_atual.columns:
+                        df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
                     st.session_state["df_base"] = df_atual
                     st.success("✅ Endereço desocupado com sucesso!")
@@ -275,6 +295,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                     df_novo = pd.read_excel(arquivo_enviado, dtype=str)
                 
                 df_novo = df_novo.fillna("")
+                df_novo.columns = [str(c).strip().upper() for c in df_novo.columns]
                 
                 st.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
                 st.dataframe(df_novo.head(10), use_container_width=True)
