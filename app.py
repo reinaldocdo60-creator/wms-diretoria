@@ -41,6 +41,8 @@ def carregar_usuarios():
 
 def salvar_usuarios(db):
     try:
+        df_base_atual = st.session_state.get("df_base", carregar_dados())
+        
         lista_user = []
         for user, info in db.items():
             lista_user.append({
@@ -50,12 +52,11 @@ def salvar_usuarios(db):
             })
         df_user = pd.DataFrame(lista_user)
         
-        if os.path.exists(ARQUIVO_EXCEL):
-            with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-                df_user.to_excel(writer, sheet_name="Usuarios", index=False)
-        else:
-            with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
-                df_user.to_excel(writer, sheet_name="Usuarios", index=False)
+        with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
+            df_base_atual.to_excel(writer, sheet_name="Base_Dados", index=False)
+            df_user.to_excel(writer, sheet_name="Usuarios", index=False)
+            
+        st.session_state["usuarios_db"] = carregar_usuarios()
     except Exception as e:
         st.error(f"Erro ao salvar usuários: {e}")
 
@@ -99,7 +100,7 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
-    db_atual = st.session_state["usuarios_db"]
+    db_atual = st.session_state.get("usuarios_db", carregar_usuarios())
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
     
@@ -120,7 +121,10 @@ if not st.session_state["autenticado"]:
     st.title("📦 WMS - Acesso ao Sistema")
     st.subheader("🔒 Identificação do Usuário")
 
+    # Garante a leitura mais recente dos usuários na tela de login
+    st.session_state["usuarios_db"] = carregar_usuarios()
     usuarios_disponiveis = list(st.session_state["usuarios_db"].keys())
+    
     usuario_input = st.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
     senha_input = st.text_input("Senha de Acesso", type="password")
 
@@ -399,6 +403,8 @@ elif opcao_menu == "💾 Backup e Histórico":
 elif opcao_menu == "👥 Gerenciar Usuários":
     st.header("👥 Gerenciamento de Colaboradores e Acessos")
     if validar_admin():
+        # Atualiza a referência dos usuários na tela
+        st.session_state["usuarios_db"] = carregar_usuarios()
         db = st.session_state["usuarios_db"]
         
         dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
@@ -438,11 +444,11 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             elif novo_usuario in db:
                 st.error("Este usuário já existe!")
             else:
-                st.session_state["usuarios_db"][novo_usuario] = {
+                db[novo_usuario] = {
                     "senha": nova_senha,
                     "perfil": novo_perfil
                 }
-                salvar_usuarios(st.session_state["usuarios_db"])
+                salvar_usuarios(db)
                 st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
                 st.rerun()
                 
@@ -453,9 +459,9 @@ elif opcao_menu == "👥 Gerenciar Usuários":
         if usuarios_removiveis:
             usuario_para_remover = st.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
             if st.button("Excluir Usuário Selecionado", type="primary"):
-                if usuario_para_remover in st.session_state["usuarios_db"]:
-                    del st.session_state["usuarios_db"][usuario_para_remover]
-                    salvar_usuarios(st.session_state["usuarios_db"])
+                if usuario_para_remover in db:
+                    del db[usuario_para_remover]
+                    salvar_usuarios(db)
                     st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
                     st.rerun()
         else:
