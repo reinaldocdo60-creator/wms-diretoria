@@ -320,7 +320,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     if q_valid:
         df_total = str_lit.session_state.get("df_base", carregar_dados())
-        df_total.columns = [str(c].strip().upper() for c in df_total.columns]
+        df_total.columns = [str(c).strip().upper() for c in df_total.columns]
         
         if not df_total.empty and "CODFAB" in df_total.columns and (df_total["CODFAB"].astype(str).str.upper() == q_valid).any():
             str_lit.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
