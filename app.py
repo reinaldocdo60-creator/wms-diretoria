@@ -13,7 +13,7 @@ str_lit.set_page_config(
 )
 
 # =========================================================
-# GERENCIAMENTO DE USUÁRIOS E SENHAS (COM PERSISTÊNCIA NO EXCEL)
+# GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA BLINDADA)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 
@@ -24,23 +24,38 @@ def carregar_usuarios():
     }
     if os.path.exists(ARQUIVO_EXCEL):
         try:
-            df_user = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Usuarios", dtype=str)
-            df_user = df_user.fillna("")
-            db = {}
-            for _, row in df_user.iterrows():
-                user = str(row["USUARIO"]).strip().lower()
-                senha = str(row["SENHA"]).strip()
-                perfil = str(row["PERFIL"]).strip().upper()
-                if user:
-                    db[user] = {"senha": senha, "perfil": perfil}
-            return db if db else usuarios_padrao
+            xl = pd.ExcelFile(ARQUIVO_EXCEL)
+            if "Usuarios" in xl.sheet_names:
+                df_user = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Usuarios", dtype=str)
+                df_user = df_user.fillna("")
+                db = {}
+                for _, row in df_user.iterrows():
+                    user = str(row["USUARIO"]).strip().lower()
+                    senha = str(row["SENHA"]).strip()
+                    perfil = str(row["PERFIL"]).strip().upper()
+                    if user:
+                        db[user] = {"senha": senha, "perfil": perfil}
+                return db if db else usuarios_padrao
         except Exception:
-            return usuarios_padrao
+            pass
     return usuarios_padrao
 
 def salvar_usuarios(db):
     try:
-        df_base_atual = str_lit.session_state.get("df_base", carregar_dados())
+        # Lê a base atual de dados para não perdê-la ao salvar usuários
+        colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
+        df_base_atual = pd.DataFrame(columns=colunas_padrao)
+        if os.path.exists(ARQUIVO_EXCEL):
+            try:
+                xl = pd.ExcelFile(ARQUIVO_EXCEL)
+                if "Base_Dados" in xl.sheet_names:
+                    df_base_atual = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
+                else:
+                    df_base_atual = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
+            except Exception:
+                pass
+        
+        df_base_atual = df_base_atual.fillna("")
         
         lista_user = []
         for user, info in db.items():
@@ -85,15 +100,15 @@ def carregar_dados():
     colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
     if os.path.exists(ARQUIVO_EXCEL):
         try:
-            try:
+            xl = pd.ExcelFile(ARQUIVO_EXCEL)
+            if "Base_Dados" in xl.sheet_names:
                 df = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
-            except Exception:
+            else:
                 df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             
             df = df.fillna("")
             df.columns = [str(c).strip().upper() for c in df.columns]
             
-            # Garante que colunas novas existam caso o arquivo seja antigo
             for col in colunas_padrao:
                 if col not in df.columns:
                     df[col] = ""
@@ -105,6 +120,7 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
+    # Recupera os usuários atuais da sessão ou do arquivo para nunca perdê-los
     db_atual = str_lit.session_state.get("usuarios_db", carregar_usuarios())
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
@@ -247,7 +263,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     with tab1:
         str_lit.dataframe(df_res, use_container_width=True)
         
-        # Painel lateral/rápido exclusivo para Admin desocupar o item direto da pesquisa
         if str_lit.session_state["perfil"] == "ADMIN" and not df_res.empty:
             str_lit.markdown("---")
             str_lit.subheader("⚙️ Ação Rápida de Administrador (Desocupar Endereço)")
@@ -289,8 +304,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                             str_lit.session_state["df_base"] = df_atual
                             str_lit.success(f"✅ Endereço do produto '{codigo_alvo}' limpo com sucesso!")
                             str_lit.rerun()
-                        else:
-                            str_lit.error("Erro ao localizar o produto na base principal.")
 
     with tab2:
         str_lit.dataframe(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
@@ -433,9 +446,10 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
         
         if arquivo_enviado is not None:
             try:
-                try:
+                xl_up = pd.ExcelFile(arquivo_enviado)
+                if "Base_Dados" in xl_up.sheet_names:
                     df_novo = pd.read_excel(arquivo_enviado, sheet_name="Base_Dados", dtype=str)
-                except Exception:
+                else:
                     df_novo = pd.read_excel(arquivo_enviado, dtype=str)
                 
                 df_novo = df_novo.fillna("")
