@@ -16,6 +16,7 @@ str_lit.set_page_config(
 # GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA BLINDADA)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
+COLUNAS_PADRAO = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
 
 def carregar_usuarios():
     usuarios_padrao = {
@@ -42,9 +43,7 @@ def carregar_usuarios():
 
 def salvar_usuarios(db):
     try:
-        # Lê a base atual de dados para não perdê-la ao salvar usuários
-        colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
-        df_base_atual = pd.DataFrame(columns=colunas_padrao)
+        df_base_atual = pd.DataFrame(columns=COLUNAS_PADRAO)
         if os.path.exists(ARQUIVO_EXCEL):
             try:
                 xl = pd.ExcelFile(ARQUIVO_EXCEL)
@@ -56,6 +55,10 @@ def salvar_usuarios(db):
                 pass
         
         df_base_atual = df_base_atual.fillna("")
+        for col in COLUNAS_PADRAO:
+            if col not in df_base_atual.columns:
+                df_base_atual[col] = ""
+        df_base_atual = df_base_atual[COLUNAS_PADRAO]
         
         lista_user = []
         for user, info in db.items():
@@ -97,7 +100,6 @@ if "q_valid" not in str_lit.session_state:
 # =========================================================
 @str_lit.cache_data(ttl=2)
 def carregar_dados():
-    colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             xl = pd.ExcelFile(ARQUIVO_EXCEL)
@@ -109,21 +111,28 @@ def carregar_dados():
             df = df.fillna("")
             df.columns = [str(c).strip().upper() for c in df.columns]
             
-            for col in colunas_padrao:
+            for col in COLUNAS_PADRAO:
                 if col not in df.columns:
                     df[col] = ""
                     
+            # Mantém estritamente a ordem padrão das colunas
+            df = df[COLUNAS_PADRAO]
             return df
         except Exception:
-            return pd.DataFrame(columns=colunas_padrao)
+            return pd.DataFrame(columns=COLUNAS_PADRAO)
     else:
-        return pd.DataFrame(columns=colunas_padrao)
+        return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def salvar_dados(df):
-    # Recupera os usuários atuais da sessão ou do arquivo para nunca perdê-los
     db_atual = str_lit.session_state.get("usuarios_db", carregar_usuarios())
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
+    
+    df = df.fillna("")
+    for col in COLUNAS_PADRAO:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[COLUNAS_PADRAO] # Assegura a ordem correta antes de gravar no Excel
     
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
@@ -219,29 +228,10 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     if q_busca and not df_res.empty:
         try:
-            col_cod_int = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
-            col_cod_fab = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
-            col_desc = "DESCRICAO" if "DESCRICAO" in df_res.columns else "DESCRIÇÃO"
-            
             mask = pd.Series(False, index=df_res.index)
-            
-            if col_cod_int in df_res.columns:
-                mask = mask | df_res[col_cod_int].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if col_cod_fab in df_res.columns:
-                mask = mask | df_res[col_cod_fab].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if col_desc in df_res.columns:
-                mask = mask | df_res[col_desc].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if "RUA" in df_res.columns:
-                mask = mask | df_res["RUA"].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if "BOX" in df_res.columns:
-                mask = mask | df_res["BOX"].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if "ALTURA" in df_res.columns:
-                mask = mask | df_res["ALTURA"].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if "PALLET" in df_res.columns:
-                mask = mask | df_res["PALLET"].astype(str).str.upper().str.contains(q_busca, regex=False)
-            if "PLT" in df_res.columns:
-                mask = mask | df_res["PLT"].astype(str).str.upper().str.contains(q_busca, regex=False)
-                
+            for col in COLUNAS_PADRAO:
+                if col in df_res.columns:
+                    mask = mask | df_res[col].astype(str).str.upper().str.contains(q_busca, regex=False)
             df_res = df_res[mask]
         except Exception as e:
             str_lit.error(f"Erro ao filtrar busca: {e}")
@@ -268,16 +258,12 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             str_lit.subheader("⚙️ Ação Rápida de Administrador (Desocupar Endereço)")
             str_lit.write("Selecione um dos produtos encontrados acima para limpar o endereço instantaneamente:")
             
-            col_ci_key = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
-            col_cf_key = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
-            col_desc_key = "DESCRICAO" if "DESCRICAO" in df_res.columns else "DESCRIÇÃO"
-            
             opcoes_desocupar = []
             mapa_opcoes = {}
             for _, r in df_res.iterrows():
-                ci = str(r.get(col_ci_key, ""))
-                cf = str(r.get(col_cf_key, ""))
-                desc = str(r.get(col_desc_key, ""))
+                ci = str(r.get("CODINTERNO", ""))
+                cf = str(r.get("CODFAB", ""))
+                desc = str(r.get("DESCRICAO", ""))
                 rua = str(r.get("RUA", ""))
                 box = str(r.get("BOX", ""))
                 rotulo = f"Cód. Int: {ci} | Cód. Fab: {cf} | {desc} (End: Rua {rua}, Box {box})"
@@ -295,7 +281,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                         codigo_alvo = mapa_opcoes[item_escolhido]
                         df_atual = str_lit.session_state["df_base"]
                         
-                        idx = df_atual[(df_atual[col_ci_key].str.upper() == codigo_alvo.upper()) | (df_atual[col_cf_key].str.upper() == codigo_alvo.upper())].index
+                        idx = df_atual[(df_atual["CODINTERNO"].str.upper() == codigo_alvo.upper()) | (df_atual["CODFAB"].str.upper() == codigo_alvo.upper())].index
                         if not idx.empty:
                             df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
                             if "DATA ATUALIZACAO" in df_atual.columns:
@@ -309,11 +295,10 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         str_lit.dataframe(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
 
     if q_valid:
-        col_validacao = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
         df_total = str_lit.session_state.get("df_base", carregar_dados())
         df_total.columns = [str(c).strip().upper() for c in df_total.columns]
         
-        if not df_total.empty and col_validacao in df_total.columns and (df_total[col_validacao].astype(str).str.upper() == q_valid).any():
+        if not df_total.empty and "CODFAB" in df_total.columns and (df_total["CODFAB"].astype(str).str.upper() == q_valid).any():
             str_lit.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
         else:
             str_lit.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
@@ -340,10 +325,7 @@ elif opcao_menu == "🚚 Mover Produto":
                 str_lit.warning("Preencha os campos obrigatórios (*).")
             else:
                 df_atual = str_lit.session_state["df_base"]
-                col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
-                col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
-                
-                idx = df_atual[(df_atual[col_ci].str.upper() == cod_mover) | (df_atual[col_cf].str.upper() == cod_mover)].index
+                idx = df_atual[(df_atual["CODINTERNO"].str.upper() == cod_mover) | (df_atual["CODFAB"].str.upper() == cod_mover)].index
                 if not idx.empty:
                     df_atual.loc[idx, "RUA"] = nova_rua
                     df_atual.loc[idx, "BOX"] = novo_box
@@ -364,7 +346,7 @@ elif opcao_menu == "🚚 Mover Produto":
                     str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
-# TELA 3: CADASTRAR / OCUPAR
+# TELA 3: CADASTRAR / OCUPAR (PADRONIZADO NA ORDEM CORRETA)
 # =========================================================
 elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar / Ocupar Endereço")
@@ -390,6 +372,8 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     str_lit.warning("Preencha todos os campos obrigatórios (*).")
                 else:
                     df_atual = str_lit.session_state["df_base"]
+                    
+                    # Cria o registro exatamente alinhado com a ordem padrão das colunas
                     novo_registro = {
                         "CODINTERNO": cod_int,
                         "CODFAB": cod_fab,
@@ -403,7 +387,10 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                         "GARANTIA": garantia,
                         "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
-                    df_atual = pd.concat([df_atual, pd.DataFrame([novo_registro])], ignore_index=True)
+                    
+                    df_novo_item = pd.DataFrame([novo_registro])[COLUNAS_PADRAO]
+                    df_atual = pd.concat([df_atual, df_novo_item], ignore_index=True)
+                    
                     salvar_dados(df_atual)
                     str_lit.session_state["df_base"] = df_atual
                     str_lit.success("✅ Novo produto cadastrado/endereçado com sucesso!")
@@ -420,10 +407,7 @@ elif opcao_menu == "🧹 Limpar Endereço":
             
             if btn_limp:
                 df_atual = str_lit.session_state["df_base"]
-                col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
-                col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
-                
-                idx = df_atual[(df_atual[col_ci].str.upper() == cod_limp) | (df_atual[col_cf].str.upper() == cod_limp)].index
+                idx = df_atual[(df_atual["CODINTERNO"].str.upper() == cod_limp) | (df_atual["CODFAB"].str.upper() == cod_limp)].index
                 if not idx.empty:
                     df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
                     if "DATA ATUALIZACAO" in df_atual.columns:
@@ -454,6 +438,12 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 
                 df_novo = df_novo.fillna("")
                 df_novo.columns = [str(c).strip().upper() for c in df_novo.columns]
+                
+                # Garante que colunas novas existam e ordena conforme a estrutura padrão
+                for col in COLUNAS_PADRAO:
+                    if col not in df_novo.columns:
+                        df_novo[col] = ""
+                df_novo = df_novo[COLUNAS_PADRAO]
                 
                 str_lit.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
                 str_lit.dataframe(df_novo.head(10), use_container_width=True)
