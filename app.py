@@ -799,7 +799,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
 # =========================================================
 elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
-    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processes e regras de negócio do nosso sistema de gerenciamento de armazém.")
+    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
     if "historico_chat" not in str_lit.session_state:
         str_lit.session_state["historico_chat"] = []
@@ -816,27 +816,23 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    from google import genai
+                    # Usando a biblioteca tradicional que aceita chaves AQ. sem conflito de token
+                    import google.generativeai as genai
                     
                     # Cole aqui a sua chave completa que começa com AQ.
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Inicialização combinada para contornar o bug de validação de chaves novas (AQ.)
-                    client = genai.Client(
-                        api_key=api_key_valor,
-                        http_options={
-                            "headers": {
-                                "x-goog-api-key": api_key_valor
-                            }
-                        }
-                    )
+                    # Configura a chave globalmente na biblioteca
+                    genai.configure(api_key=api_key_valor)
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Usando o modelo padrão recomendado para essa arquitetura
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
+                    # Inicializa o modelo correto do Gemini
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    # Envia a instrução com a dúvida do usuário
+                    response = model.generate_content(
+                        f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
                     )
                     
                     resposta_ia = response.text
@@ -845,4 +841,5 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
