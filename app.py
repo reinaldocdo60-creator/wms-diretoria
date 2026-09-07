@@ -818,7 +818,7 @@ elif opcao_menu == "🤖 Assistente IA":
                 try:
                     from google import genai
                     
-                    # Coloque sua chave de API aqui dentro das aspas:
+                    # Cole sua chave exata aqui dentro das aspas:
                     api_key_valor = "SUA_CHAVE_COLE_AQUI"
                     
                     client = genai.Client(api_key=api_key_valor)
@@ -826,7 +826,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
                     response = client.models.generate_content(
-                        model='gemini-3.6-flash',
+                        model='gemini-1.5-flash',
                         contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
                     )
                     
