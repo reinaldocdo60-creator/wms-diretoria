@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import time
 import uuid
+import copy
 import hashlib
 from contextlib import contextmanager
 from datetime import datetime
@@ -83,6 +84,15 @@ def _eh_hash_valido(valor):
     return isinstance(valor, str) and len(valor) == 64 and all(c in "0123456789abcdef" for c in valor.lower())
 
 
+def _clonar_usuarios(db):
+    """Cópia profunda do dicionário de usuários. Usada antes de qualquer
+    alteração (cadastro, troca de senha, remoção) para que a sessão só
+    reflita a mudança DEPOIS de confirmado que ela foi salva no Excel —
+    evita usuários "fantasmas" que aparecem salvos na tela mas nunca
+    chegaram a ser gravados em disco."""
+    return copy.deepcopy(db)
+
+
 # =========================================================
 # IDs ÚNICOS DE ENDEREÇO
 # =========================================================
@@ -160,6 +170,10 @@ def _ler_base_bruta():
 
 
 def salvar_usuarios(db):
+    """Salva o dicionário de usuários no Excel. Retorna True em caso de
+    sucesso e False em caso de falha. Só atualiza st.session_state["usuarios_db"]
+    quando o arquivo é realmente gravado — assim a sessão nunca "acredita"
+    que um usuário foi salvo se a gravação em disco falhou."""
     try:
         df_base_atual = _ler_base_bruta()
 
@@ -175,15 +189,17 @@ def salvar_usuarios(db):
         with _lock_arquivo() as obtido:
             if not obtido:
                 st.error("Não foi possível salvar: o arquivo está sendo usado por outra operação. Tente novamente.")
-                return
+                return False
             with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
                 df_base_atual.to_excel(writer, sheet_name="Base_Dados", index=False)
                 df_user.to_excel(writer, sheet_name="Usuarios", index=False)
 
         st.session_state["usuarios_db"] = carregar_usuarios()
         carregar_dados.clear()
+        return True
     except Exception as e:
         st.error(f"Erro ao salvar usuários: {e}")
+        return False
 
 
 if "usuarios_db" not in st.session_state:
@@ -290,10 +306,15 @@ if not st.session_state["autenticado"]:
             else:
                 # Compatibilidade com bases antigas que ainda guardam a senha
                 # em texto puro: aceita uma vez e converte para hash na hora.
+                # Trabalha em uma cópia — se o salvamento falhar, o login
+                # ainda funciona nesta sessão, mas não fica uma versão
+                # "adiantada" (com a senha já hasheada) presa em memória
+                # sem ter sido realmente persistida.
                 if senha_armazenada == senha_input:
                     autenticado_ok = True
-                    db[usuario_input.lower()]["senha"] = hash_senha(senha_input)
-                    salvar_usuarios(db)
+                    db_tentativa = _clonar_usuarios(db)
+                    db_tentativa[usuario_input.lower()]["senha"] = hash_senha(senha_input)
+                    salvar_usuarios(db_tentativa)
 
         if autenticado_ok:
             st.session_state["autenticado"] = True
@@ -713,9 +734,10 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             if not nova_senha_input:
                 st.warning("Digite a nova senha.")
             else:
-                db[usuario_para_alterar]["senha"] = hash_senha(nova_senha_input)
-                salvar_usuarios(db)
-                st.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
+                db_tentativa = _clonar_usuarios(db)
+                db_tentativa[usuario_para_alterar]["senha"] = hash_senha(nova_senha_input)
+                if salvar_usuarios(db_tentativa):
+                    st.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
 
         st.divider()
         st.subheader("Cadastrar Novo Colaborador")
@@ -734,13 +756,14 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             elif novo_usuario in db:
                 st.error("Este usuário já existe!")
             else:
-                db[novo_usuario] = {
+                db_tentativa = _clonar_usuarios(db)
+                db_tentativa[novo_usuario] = {
                     "senha": hash_senha(nova_senha),
                     "perfil": novo_perfil
                 }
-                salvar_usuarios(db)
-                st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
-                st.rerun()
+                if salvar_usuarios(db_tentativa):
+                    st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
+                    st.rerun()
 
         st.divider()
         st.subheader("Remover Usuário")
@@ -751,9 +774,10 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             usuario_para_remover = st.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
             if st.button("Excluir Usuário Selecionado", type="primary"):
                 if usuario_para_remover in db:
-                    del db[usuario_para_remover]
-                    salvar_usuarios(db)
-                    st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
-                    st.rerun()
+                    db_tentativa = _clonar_usuarios(db)
+                    del db_tentativa[usuario_para_remover]
+                    if salvar_usuarios(db_tentativa):
+                        st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
+                        st.rerun()
         else:
             st.info("Não há outros usuários cadastrados para remoção.")
