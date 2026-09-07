@@ -233,23 +233,19 @@ df_base = str_lit.session_state["df_base"]
 # TELA DE LOGIN (COM BLOQUEIO E CAMPOS PROPORCIONAIS)
 # =========================================================
 if not str_lit.session_state["autenticado"]:
-    # Criamos colunas para centralizar e limitar a largura do login
     _, col_centro, _ = str_lit.columns([1, 1.2, 1])
     
     with col_centro:
-        str_lit.markdown("<br>", unsafe_allow_html=True) # Espaçamento superior
+        str_lit.markdown("<br>", unsafe_allow_html=True)
         str_lit.title("📦 WMS - Acesso")
         str_lit.subheader("🔒 Identificação")
 
-        # Verifica se o usuário está atualmente bloqueado
         bloqueado_ate = str_lit.session_state.get("tempo_bloqueio", None)
         
         if bloqueado_ate and datetime.now() < bloqueado_ate:
             str_lit.error("❌ Muitas tentativas incorretas. Acesso bloqueado por 1 minuto.")
-            
             if str_lit.button("🔄 Verificar se o tempo acabou", use_container_width=True):
                 str_lit.rerun()
-                
             str_lit.stop()
         elif bloqueado_ate and datetime.now() >= bloqueado_ate:
             str_lit.session_state["tempo_bloqueio"] = None
@@ -277,7 +273,6 @@ if not str_lit.session_state["autenticado"]:
                 str_lit.rerun()
             else:
                 str_lit.session_state["tentativas_login"] += 1
-                
                 if str_lit.session_state["tentativas_login"] >= 3:
                     str_lit.session_state["tempo_bloqueio"] = datetime.now() + timedelta(minutes=1)
                     str_lit.error("❌ Limite de 3 tentativas atingido. Bloqueado por 1 minuto.")
@@ -301,11 +296,14 @@ opcoes_menu = [
     "➕ Cadastrar / Ocupar",
     "🧹 Limpar Endereço / Excluir Linha",
     "📥 Importar / Atualizar Base em Massa",
-    "💾 Backup e Histórico"
+    "📊 Sugestão de Inventário Mensal",
+    "💾 Backup e Histórico",
+    "📖 Manual de Instruções"
 ]
 
 if str_lit.session_state["perfil"] == "ADMIN":
-    opcoes_menu.append("👥 Gerenciar Usuários")
+    # Se quiser restringir 'Gerenciar Usuários', insere no menu apropriadamente
+    opcoes_menu.insert(6, "👥 Gerenciar Usuários")
 
 opcao_menu = str_lit.sidebar.radio("Navegação Principal", opcoes_menu)
 
@@ -493,7 +491,6 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     str_lit.warning("Preencha todos os campos obrigatórios (*).")
                 else:
                     df_atual = str_lit.session_state["df_base"]
-                    
                     novo_registro = {
                         "GARANTIA": garantia,
                         "CODINTERNO": cod_int,
@@ -507,10 +504,8 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                         "PLT": plt,
                         "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
-                    
                     df_novo_item = pd.DataFrame([novo_registro])[COLUNAS_PADRAO]
                     df_atual = pd.concat([df_atual, df_novo_item], ignore_index=True)
-                    
                     salvar_dados(df_atual)
                     str_lit.session_state["df_base"] = df_atual
                     str_lit.success("✅ Novo produto cadastrado/endereçado com sucesso!")
@@ -522,7 +517,6 @@ elif opcao_menu == "🧹 Limpar Endereço / Excluir Linha":
     str_lit.header("🧹 Gerenciamento de Exclusão de Endereços/Linhas")
     if validar_admin():
         str_lit.write("Digite o código (Interno ou Fabricante) para localizar todas as ocorrências e linhas associadas a ele:")
-        
         cod_busca_limpeza = str_lit.text_input("Código para consulta de exclusão *").strip().upper()
         
         if cod_busca_limpeza:
@@ -531,7 +525,6 @@ elif opcao_menu == "🧹 Limpar Endereço / Excluir Linha":
                 (df_atual["CODINTERNO"].str.upper() == cod_busca_limpeza) | 
                 (df_atual["CODFAB"].str.upper() == cod_busca_limpeza)
             ]
-            
             total_ocorrencias = len(df_encontrados)
             
             if total_ocorrencias > 0:
@@ -555,7 +548,6 @@ elif opcao_menu == "🧹 Limpar Endereço / Excluir Linha":
                     mapa_linhas[texto_opcao] = idx_real
                 
                 col_ex1, col_ex2 = str_lit.columns(2)
-                
                 with col_ex1:
                     str_lit.write("**Excluir apenas uma linha específica:**")
                     linha_escolhida = str_lit.selectbox("Selecione qual linha deseja excluir:", opcoes_linhas, key="sel_linha_excluir")
@@ -587,7 +579,6 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
     str_lit.header("📥 Importação e Atualização da Base em Massa")
     if validar_admin():
         str_lit.write("Faça o upload do arquivo Excel (`.xlsx`) com o mapeamento completo do estoque para atualizar o WMS em tempo real.")
-        
         arquivo_enviado = str_lit.file_uploader("Selecione a planilha Excel mapeada", type=["xlsx"])
         
         if arquivo_enviado is not None:
@@ -618,7 +609,24 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 str_lit.error(f"Erro ao processar o arquivo Excel: {e}")
 
 # =========================================================
-# TELA 6: BACKUP E HISTÓRICO
+# TELA 6: SUGESTÃO DE INVENTÁRIO MENSAL (NOVO)
+# =========================================================
+elif opcao_menu == "📊 Sugestão de Inventário Mensal":
+    str_lit.header("📊 Sugestão de Inventário por Amostragem")
+    str_lit.info("💡 Esta é uma listagem de sugestão direcionada para o inventário cíclico mensal. Focada em itens prioritários da base para conferência física preventiva.")
+    
+    df_amostra = str_lit.session_state.get("df_base", carregar_dados()).copy()
+    
+    if not df_amostra.empty:
+        # Pega os primeiros 10 registros principais como amostra sugerida do mês
+        df_sugestao_10 = df_amostra.head(10)
+        str_lit.write(f"Exibindo os **10 produtos sugeridos** para a verificação de amostragem deste período:")
+        str_lit.table(df_sugestao_10)
+    else:
+        str_lit.warning("A base de dados está vazia no momento.")
+
+# =========================================================
+# TELA 7: BACKUP E HISTÓRICO
 # =========================================================
 elif opcao_menu == "💾 Backup e Histórico":
     str_lit.header("💾 Backup e Exportação da Base")
@@ -635,7 +643,7 @@ elif opcao_menu == "💾 Backup e Histórico":
             )
 
 # =========================================================
-# TELA 7: GERENCIAMENTO DE USUÁRIOS
+# TELA 8: GERENCIAMENTO DE USUÁRIOS
 # =========================================================
 elif opcao_menu == "👥 Gerenciar Usuários":
     str_lit.header("👥 Gerenciamento de Colaboradores e Acessos")
@@ -702,3 +710,41 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     str_lit.rerun()
         else:
             str_lit.info("Não há outros usuários cadastrados para remoção.")
+
+# =========================================================
+# TELA 9: MANUAL DE INSTRUÇÕES (NOVO)
+# =========================================================
+elif opcao_menu == "📖 Manual de Instruções":
+    str_lit.header("📖 Manual de Instruções e Uso do WMS")
+    str_lit.markdown("Bem-vindo ao manual rápido de operações do sistema WMS. Utilize as orientações abaixo para entender o fluxo de cada rotina.")
+    
+    str_lit.markdown("---")
+    
+    str_lit.markdown("""
+    ### 1. 🔍 Pesquisa e Validação (Geral)
+    * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
+    * **Validação:** Use o segundo campo para bipar o código do fabricante. O sistema indicará de forma imediata se o código é válido ou se não foi localizado no estoque.
+    * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
+    * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras laterais, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
+
+    ### 2. 🚚 Mover Produto
+    * Permite alterar o endereço físico de um item existente (Rua, Box, Altura, Caixa, Pallet e PLT) de forma rápida e segura.
+
+    ### 3. ➕ Cadastrar / Ocupar *(Acesso Admin)*
+    * Utilizado para incluir novos produtos ou novos endereçamentos de itens na base de dados geral do armazém.
+
+    ### 4. 🧹 Limpar Endereço / Excluir Linha *(Acesso Admin)*
+    * Permite consultar um código e escolher especificamente qual linha/endereço apagar da planilha, ou remover todas as ocorrências de uma vez caso o item saia de linha.
+
+    ### 5. 📥 Importar / Atualizar Base em Massa *(Acesso Admin)*
+    * Serve para carregar uma nova planilha Excel completa (`Base_Dados`) atualizando instantaneamente o sistema do WMS em tempo real.
+
+    ### 6. 📊 Sugestão de Inventário Mensal
+    * Exibe uma seleção prática de 10 produtos direcionada para apoiar o planejamento do inventário cíclico ou amostragem periódica da operação.
+
+    ### 7. 💾 Backup e Histórico
+    * Permite baixar a qualquer momento uma cópia idêntica da planilha Excel atualizada e formatada corporativamente.
+
+    ### 8. 👥 Gerenciar Usuários *(Acesso Admin)*
+    * Permite cadastrar novos colaboradores, alterar senhas de acesso existentes ou remover perfis com total segurança.
+    """)
