@@ -14,7 +14,7 @@ str_lit.set_page_config(
 )
 
 # =========================================================
-# ESTILO CSS GLOBAL + REGRAS DE IMPRESSÃO (MEDIA PRINT) + JS PRINT
+# ESTILO CSS GLOBAL + REGRAS DE IMPRESSÃO (MEDIA PRINT)
 # =========================================================
 str_lit.markdown("""
     <style>
@@ -116,6 +116,8 @@ if "perfil" not in str_lit.session_state:
     str_lit.session_state["perfil"] = ""
 if "linhas_congeladas" not in str_lit.session_state:
     str_lit.session_state["linhas_congeladas"] = pd.DataFrame()
+if "modo_impressao" not in str_lit.session_state:
+    str_lit.session_state["modo_impressao"] = False
 
 if "q_busca" not in str_lit.session_state:
     str_lit.session_state["q_busca"] = ""
@@ -217,6 +219,7 @@ if str_lit.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
     str_lit.session_state["perfil"] = ""
     str_lit.session_state["q_busca"] = ""
     str_lit.session_state["q_valid"] = ""
+    str_lit.session_state["modo_impressao"] = False
     str_lit.rerun()
 
 def validar_admin():
@@ -229,6 +232,37 @@ def validar_admin():
 # TELA 1: PESQUISA E VALIDAÇÃO
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
+    
+    # Se o modo de pré-visualização de impressão estiver ativo
+    if str_lit.session_state.get("modo_impressao", False):
+        str_lit.markdown("## 🖨️ Pré-visualização de Impressão - WMS")
+        str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
+        
+        if str_lit.button("⬅️ Voltar para a Pesquisa Normal", use_container_width=True):
+            str_lit.session_state["modo_impressao"] = False
+            str_lit.rerun()
+            
+        str_lit.markdown("---")
+        
+        # Recupera dados filtrados atuais
+        q_busca_ativo = str_lit.session_state.get("q_busca", "").strip().upper()
+        df_res_print = str_lit.session_state.get("df_base", carregar_dados()).copy()
+        df_res_print.columns = [str(c).strip().upper() for c in df_res_print.columns]
+        
+        if q_busca_ativo and not df_res_print.empty:
+            mask = pd.Series(False, index=df_res_print.index)
+            for col in COLUNAS_PADRAO:
+                if col in df_res_print.columns:
+                    mask = mask | df_res_print[col].astype(str).str.upper().str.contains(q_busca_ativo, regex=False)
+            df_res_print = df_res_print[mask]
+        else:
+            df_res_print = df_res_print.iloc[0:0]
+            
+        str_lit.write(f"**Filtro aplicado:** {q_busca_ativo if q_busca_ativo else 'Nenhum'} | **Total de registros:** {len(df_res_print)}")
+        str_lit.table(df_res_print)
+        str_lit.stop() # Interrompe a execução para mostrar apenas o preview limpo
+
+    # Tela normal de Pesquisa
     str_lit.header("🔍 Pesquisa e Validação")
 
     col_l1, col_l2 = str_lit.columns([4, 1])
@@ -273,13 +307,10 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         with col_cab:
             str_lit.markdown("### Resultado da Pesquisa de Estoque")
         with col_btn_imp:
-            # Botão de Ação Direta para Visualização/Impressão
+            # Botão que ativa o modo de pré-visualização limpa na tela
             if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
-                str_lit.markdown("""
-                    <script>
-                        window.print();
-                    </script>
-                """, unsafe_allow_html=True)
+                str_lit.session_state["modo_impressao"] = True
+                str_lit.rerun()
 
         str_lit.table(df_res)
 
@@ -289,7 +320,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     if q_valid:
         df_total = str_lit.session_state.get("df_base", carregar_dados())
-        df_total.columns = [str(c).strip().upper() for c in df_total.columns]
+        df_total.columns = [str(c].strip().upper() for c in df_total.columns]
         
         if not df_total.empty and "CODFAB" in df_total.columns and (df_total["CODFAB"].astype(str).str.upper() == q_valid).any():
             str_lit.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
