@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import json
 from datetime import datetime
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # =========================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -155,8 +157,71 @@ def salvar_dados(df):
             df[col] = ""
     df = df[COLUNAS_PADRAO]
     
+    # Salva os dados usando openpyxl para aplicar formatação visual rica
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
+        
+    # Abre o arquivo recém-salvo para aplicar o estilo visual (Cores, Bordas, Fontes)
+    wb = openpyxl.load_workbook(ARQUIVO_EXCEL)
+    ws = wb["Base_Dados"]
+    
+    # Paleta de cores corporativa (Azul WMS Escuro + Texto Branco)
+    cor_cabecalho_fundo = "1F4E78" # Azul escuro profissional
+    cor_cabecalho_fonte = "FFFFFF" # Branco
+    cor_linha_alternada = "F9FBFD"  # Azul bem clarinho para efeito zebrado
+    
+    # Estilos de fonte e alinhamento
+    fonte_cabecalho = Font(name="Arial", size=11, bold=True, color=cor_cabecalho_fonte)
+    preenchimento_cabecalho = PatternFill(start_color=cor_cabecalho_fundo, end_color=cor_cabecalho_fundo, fill_type="solid")
+    
+    borda_fina = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+    
+    alinhar_centro = Alignment(horizontal="center", vertical="center")
+    alinhar_esquerda = Alignment(horizontal="left", vertical="center")
+    
+    # Formata o Cabeçalho (Linha 1)
+    for col_num in range(1, len(COLUNAS_PADRAO) + 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = fonte_cabecalho
+        cell.fill = preenchimento_cabecalho
+        cell.alignment = alinhar_centro
+        cell.border = borda_fina
+        
+    # Formata as Linhas de Dados (Efeito Zebrado + Bordas + Alinhamento)
+    for row_num in range(2, len(df) + 2):
+        is_par = (row_num % 2 == 0)
+        fill_atual = PatternFill(start_color=cor_linha_alternada, end_color=cor_linha_alternada, fill_type="solid") if is_par else None
+        
+        for col_num in range(1, len(COLUNAS_PADRAO) + 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.font = Font(name="Arial", size=10)
+            cell.border = borda_fina
+            
+            if fill_atual:
+                cell.fill = fill_atual
+                
+            # Centraliza códigos e endereços, deixa descrições alinhadas à esquerda
+            nome_coluna = COLUNAS_PADRAO[col_num - 1]
+            if nome_coluna in ["DESCRICAO"]:
+                cell.alignment = alinhar_esquerda
+            else:
+                cell.alignment = alinhar_centro
+
+    # Ajusta automaticamente a largura das colunas para o texto não ficar cortado
+    for col in ws.columns:
+        max_len = 0
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        
+    wb.save(ARQUIVO_EXCEL)
     str_lit.cache_data.clear()
 
 if "df_base" not in str_lit.session_state:
@@ -529,7 +594,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
 # =========================================================
 elif opcao_menu == "💾 Backup e Histórico":
     str_lit.header("💾 Backup e Exportação da Base")
-    str_lit.write("Baixe uma cópia da base de estoque atualizada:")
+    str_lit.write("Baixe uma cópia da base de estoque atualizada (já com formatação corporativa pronta para consulta offline):")
     
     if os.path.exists(ARQUIVO_EXCEL):
         with open(ARQUIVO_EXCEL, "rb") as f:
