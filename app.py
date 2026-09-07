@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as str_lit
 import pandas as pd
 import os
 from datetime import datetime
@@ -6,7 +6,7 @@ from datetime import datetime
 # =========================================================
 # CONFIGURAÇÃO DA PÁGINA
 # =========================================================
-st.set_page_config(
+str_lit.set_page_config(
     page_title="WMS - Gestão de Estoque",
     page_icon="📦",
     layout="wide"
@@ -18,7 +18,6 @@ st.set_page_config(
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 
 def carregar_usuarios():
-    # Padrão inicial caso o arquivo ou aba não existam
     usuarios_padrao = {
         "operador": {"senha": "op123", "perfil": "OPERADOR"},
         "admin": {"senha": "admin123", "perfil": "ADMIN"}
@@ -41,7 +40,7 @@ def carregar_usuarios():
 
 def salvar_usuarios(db):
     try:
-        df_base_atual = st.session_state.get("df_base", carregar_dados())
+        df_base_atual = str_lit.session_state.get("df_base", carregar_dados())
         
         lista_user = []
         for user, info in db.items():
@@ -56,32 +55,32 @@ def salvar_usuarios(db):
             df_base_atual.to_excel(writer, sheet_name="Base_Dados", index=False)
             df_user.to_excel(writer, sheet_name="Usuarios", index=False)
             
-        st.session_state["usuarios_db"] = carregar_usuarios()
+        str_lit.session_state["usuarios_db"] = carregar_usuarios()
     except Exception as e:
-        st.error(f"Erro ao salvar usuários: {e}")
+        str_lit.error(f"Erro ao salvar usuários: {e}")
 
-if "usuarios_db" not in st.session_state:
-    st.session_state["usuarios_db"] = carregar_usuarios()
+if "usuarios_db" not in str_lit.session_state:
+    str_lit.session_state["usuarios_db"] = carregar_usuarios()
 
 # Inicialização da Sessão
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-if "usuario_logado" not in st.session_state:
-    st.session_state["usuario_logado"] = ""
-if "perfil" not in st.session_state:
-    st.session_state["perfil"] = ""
-if "linhas_congeladas" not in st.session_state:
-    st.session_state["linhas_congeladas"] = pd.DataFrame()
+if "autenticado" not in str_lit.session_state:
+    str_lit.session_state["autenticado"] = False
+if "usuario_logado" not in str_lit.session_state:
+    str_lit.session_state["usuario_logado"] = ""
+if "perfil" not in str_lit.session_state:
+    str_lit.session_state["perfil"] = ""
+if "linhas_congeladas" not in str_lit.session_state:
+    str_lit.session_state["linhas_congeladas"] = pd.DataFrame()
 
-if "q_busca" not in st.session_state:
-    st.session_state["q_busca"] = ""
-if "q_valid" not in st.session_state:
-    st.session_state["q_valid"] = ""
+if "q_busca" not in str_lit.session_state:
+    str_lit.session_state["q_busca"] = ""
+if "q_valid" not in str_lit.session_state:
+    str_lit.session_state["q_valid"] = ""
 
 # =========================================================
-# CARREGAMENTO SEGURO DA BASE DE DADOS (BLINDADO PARA MOBILE)
+# CARREGAMENTO SEGURO DA BASE DE DADOS
 # =========================================================
-@st.cache_data(ttl=2)
+@str_lit.cache_data(ttl=2)
 def carregar_dados():
     colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "GARANTIA", "CAIXA", "DATA ATUALIZACAO"]
     if os.path.exists(ARQUIVO_EXCEL):
@@ -100,54 +99,53 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas_padrao)
 
 def salvar_dados(df):
-    db_atual = st.session_state.get("usuarios_db", carregar_usuarios())
+    db_atual = str_lit.session_state.get("usuarios_db", carregar_usuarios())
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
     
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
         df_user.to_excel(writer, sheet_name="Usuarios", index=False)
-    st.cache_data.clear()
+    str_lit.cache_data.clear()
 
-if "df_base" not in st.session_state:
-    st.session_state["df_base"] = carregar_dados()
+if "df_base" not in str_lit.session_state:
+    str_lit.session_state["df_base"] = carregar_dados()
 
-df_base = st.session_state["df_base"]
+df_base = str_lit.session_state["df_base"]
 
 # =========================================================
 # TELA DE LOGIN
 # =========================================================
-if not st.session_state["autenticado"]:
-    st.title("📦 WMS - Acesso ao Sistema")
-    st.subheader("🔒 Identificação do Usuário")
+if not str_lit.session_state["autenticado"]:
+    str_lit.title("📦 WMS - Acesso ao Sistema")
+    str_lit.subheader("🔒 Identificação do Usuário")
 
-    # Garante a leitura mais recente dos usuários na tela de login
-    st.session_state["usuarios_db"] = carregar_usuarios()
-    usuarios_disponiveis = list(st.session_state["usuarios_db"].keys())
+    str_lit.session_state["usuarios_db"] = carregar_usuarios()
+    usuarios_disponiveis = list(str_lit.session_state["usuarios_db"].keys())
     
-    usuario_input = st.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
-    senha_input = st.text_input("Senha de Acesso", type="password")
+    usuario_input = str_lit.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
+    senha_input = str_lit.text_input("Senha de Acesso", type="password")
 
-    if st.button("🔑 Entrar no WMS", use_container_width=True):
-        db = st.session_state["usuarios_db"]
+    if str_lit.button("🔑 Entrar no WMS", use_container_width=True):
+        db = str_lit.session_state["usuarios_db"]
         user_info = db.get(usuario_input.lower())
         if user_info and user_info["senha"] == senha_input:
-            st.session_state["autenticado"] = True
-            st.session_state["usuario_logado"] = usuario_input.capitalize()
-            st.session_state["perfil"] = user_info["perfil"]
-            st.rerun()
+            str_lit.session_state["autenticado"] = True
+            str_lit.session_state["usuario_logado"] = usuario_input.capitalize()
+            str_lit.session_state["perfil"] = user_info["perfil"]
+            str_lit.rerun()
         else:
-            st.error("❌ Senha incorreta!")
-    st.stop()
+            str_lit.error("❌ Senha incorreta!")
+    str_lit.stop()
 
 # =========================================================
 # BARRA LATERAL (MENU E PERFIL)
 # =========================================================
-st.sidebar.title("📦 WMS LITLE")
-st.sidebar.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
-st.sidebar.write(f"🛡️ **Perfil:** `{st.session_state['perfil']}`")
+str_lit.sidebar.title("📦 WMS LITLE")
+str_lit.sidebar.write(f"👤 **Usuário:** {str_lit.session_state['usuario_logado']}")
+str_lit.sidebar.write(f"🛡️ **Perfil:** `{str_lit.session_state['perfil']}`")
 
-st.sidebar.markdown("---")
+str_lit.sidebar.markdown("---")
 
 opcoes_menu = [
     "🔍 Pesquisa e Validação (Geral)",
@@ -158,23 +156,23 @@ opcoes_menu = [
     "💾 Backup e Histórico"
 ]
 
-if st.session_state["perfil"] == "ADMIN":
+if str_lit.session_state["perfil"] == "ADMIN":
     opcoes_menu.append("👥 Gerenciar Usuários")
 
-opcao_menu = st.sidebar.radio("Navegação Principal", opcoes_menu)
+opcao_menu = str_lit.sidebar.radio("Navegação Principal", opcoes_menu)
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-    st.session_state["autenticado"] = False
-    st.session_state["usuario_logado"] = ""
-    st.session_state["perfil"] = ""
-    st.session_state["q_busca"] = ""
-    st.session_state["q_valid"] = ""
-    st.rerun()
+str_lit.sidebar.markdown("---")
+if str_lit.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+    str_lit.session_state["autenticado"] = False
+    str_lit.session_state["usuario_logado"] = ""
+    str_lit.session_state["perfil"] = ""
+    str_lit.session_state["q_busca"] = ""
+    str_lit.session_state["q_valid"] = ""
+    str_lit.rerun()
 
 def validar_admin():
-    if st.session_state["perfil"] != "ADMIN":
-        st.error("⚠️ Acesso restrito! Esta funcionalidade exige perfil de ADMINISTRADOR.")
+    if str_lit.session_state["perfil"] != "ADMIN":
+        str_lit.error("⚠️ Acesso restrito! Esta funcionalidade exige perfil de ADMINISTRADOR.")
         return False
     return True
 
@@ -182,19 +180,19 @@ def validar_admin():
 # TELA 1: PESQUISA E VALIDAÇÃO
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
-    st.header("🔍 Pesquisa e Validação")
+    str_lit.header("🔍 Pesquisa e Validação")
 
-    col_l1, col_l2 = st.columns([4, 1])
+    col_l1, col_l2 = str_lit.columns([4, 1])
     with col_l2:
-        if st.button("🧹 Limpar Busca", use_container_width=True):
-            st.session_state["q_busca"] = ""
-            st.session_state["q_valid"] = ""
-            st.rerun()
+        if str_lit.button("🧹 Limpar Busca", use_container_width=True):
+            str_lit.session_state["q_busca"] = ""
+            str_lit.session_state["q_valid"] = ""
+            str_lit.rerun()
 
-    q_busca = st.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
-    q_valid = st.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
+    q_busca = str_lit.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
+    q_valid = str_lit.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
 
-    df_res = st.session_state.get("df_base", carregar_dados()).copy()
+    df_res = str_lit.session_state.get("df_base", carregar_dados()).copy()
     df_res.columns = [str(c).strip().upper() for c in df_res.columns]
 
     if q_busca and not df_res.empty:
@@ -220,57 +218,102 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                 
             df_res = df_res[mask]
         except Exception as e:
-            st.error(f"Erro ao filtrar busca: {e}")
+            str_lit.error(f"Erro ao filtrar busca: {e}")
     elif not q_busca:
         df_res = df_res.iloc[0:0]
 
-    if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
+    if str_lit.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
         if not df_res.empty:
-            congeladas_atuais = st.session_state.get("linhas_congeladas", pd.DataFrame())
-            st.session_state["linhas_congeladas"] = pd.concat([congeladas_atuais, df_res]).drop_duplicates()
-            st.success("Linhas congeladas com sucesso!")
+            congeladas_atuais = str_lit.session_state.get("linhas_congeladas", pd.DataFrame())
+            str_lit.session_state["linhas_congeladas"] = pd.concat([congeladas_atuais, df_res]).drop_duplicates()
+            str_lit.success("Linhas congeladas com sucesso!")
 
-    if st.button("🔥 LIMPAR LINHAS CONGELADAS", use_container_width=True):
-        st.session_state["linhas_congeladas"] = pd.DataFrame()
-        st.info("Acúmulo de linhas limpo!")
+    if str_lit.button("🔥 LIMPAR LINHAS CONGELADAS", use_container_width=True):
+        str_lit.session_state["linhas_congeladas"] = pd.DataFrame()
+        str_lit.info("Acúmulo de linhas limpo!")
 
-    tab1, tab2 = st.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(st.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
+    tab1, tab2 = str_lit.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(str_lit.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
-        st.dataframe(df_res, use_container_width=True)
+        str_lit.dataframe(df_res, use_container_width=True)
+        
+        # Painel lateral/rápido exclusivo para Admin desocupar o item direto da pesquisa
+        if str_lit.session_state["perfil"] == "ADMIN" and not df_res.empty:
+            str_lit.markdown("---")
+            str_lit.subheader("⚙️ Ação Rápida de Administrador (Desocupar Endereço)")
+            str_lit.write("Selecione um dos produtos encontrados acima para limpar o endereço instantaneamente:")
+            
+            col_ci_key = "CODINTERNO" if "CODINTERNO" in df_res.columns else "COD. INTERNO"
+            col_cf_key = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
+            col_desc_key = "DESCRICAO" if "DESCRICAO" in df_res.columns else "DESCRIÇÃO"
+            
+            opcoes_desocupar = []
+            mapa_opcoes = {}
+            for _, r in df_res.iterrows():
+                ci = str(r.get(col_ci_key, ""))
+                cf = str(r.get(col_cf_key, ""))
+                desc = str(r.get(col_desc_key, ""))
+                rua = str(r.get("RUA", ""))
+                box = str(r.get("BOX", ""))
+                rotulo = f"Cód. Int: {ci} | Cód. Fab: {cf} | {desc} (End: Rua {rua}, Box {box})"
+                opcoes_desocupar.append(rotulo)
+                mapa_opcoes[rotulo] = ci if ci else cf
+
+            if opcoes_desocupar:
+                col_sel_adm, col_btn_adm = str_lit.columns([3, 1])
+                with col_sel_adm:
+                    item_escolhido = str_lit.selectbox("Escolha o produto da lista acima para desocupar:", opcoes_desocupar, key="sel_desocupar_rapido")
+                with col_btn_adm:
+                    str_lit.write("") 
+                    str_lit.write("")
+                    if str_lit.button("🗑️ Desocupar Endereço", use_container_width=True, type="primary"):
+                        codigo_alvo = mapa_opcoes[item_escolhido]
+                        df_atual = str_lit.session_state["df_base"]
+                        
+                        idx = df_atual[(df_atual[col_ci_key].str.upper() == codigo_alvo.upper()) | (df_atual[col_cf_key].str.upper() == codigo_alvo.upper())].index
+                        if not idx.empty:
+                            df_atual.loc[idx, ["RUA", "BOX", "ALTURA"]] = ""
+                            if "DATA ATUALIZACAO" in df_atual.columns:
+                                df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            salvar_dados(df_atual)
+                            str_lit.session_state["df_base"] = df_atual
+                            str_lit.success(f"✅ Endereço do produto '{codigo_alvo}' limpo com sucesso!")
+                            str_lit.rerun()
+                        else:
+                            str_lit.error("Erro ao localizar o produto na base principal.")
 
     with tab2:
-        st.dataframe(st.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
+        str_lit.dataframe(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
 
     if q_valid:
         col_validacao = "CODFAB" if "CODFAB" in df_res.columns else "COD. FABRICANTE"
-        df_total = st.session_state.get("df_base", carregar_dados())
+        df_total = str_lit.session_state.get("df_base", carregar_dados())
         df_total.columns = [str(c).strip().upper() for c in df_total.columns]
         
         if not df_total.empty and col_validacao in df_total.columns and (df_total[col_validacao].astype(str).str.upper() == q_valid).any():
-            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
+            str_lit.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
         else:
-            st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
+            str_lit.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
 
 # =========================================================
 # TELA 2: MOVER PRODUTO
 # =========================================================
 elif opcao_menu == "🚚 Mover Produto":
-    st.header("🚚 Movimentação Interna de Produto")
+    str_lit.header("🚚 Movimentação Interna de Produto")
     
-    with st.form("form_mover"):
-        cod_mover = st.text_input("Código do Produto (Interno ou Fabricante) *").strip().upper()
-        nova_rua = st.text_input("Nova Rua *").strip().upper()
-        novo_box = st.text_input("Novo Box *").strip().upper()
-        nova_altura = st.text_input("Nova Altura *").strip().upper()
+    with str_lit.form("form_mover"):
+        cod_mover = str_lit.text_input("Código do Produto (Interno ou Fabricante) *").strip().upper()
+        nova_rua = str_lit.text_input("Nova Rua *").strip().upper()
+        novo_box = str_lit.text_input("Novo Box *").strip().upper()
+        nova_altura = str_lit.text_input("Nova Altura *").strip().upper()
         
-        btn_mover = st.form_submit_button("Confirmar Movimentação", use_container_width=True)
+        btn_mover = str_lit.form_submit_button("Confirmar Movimentação", use_container_width=True)
         
         if btn_mover:
             if not cod_mover or not nova_rua or not novo_box or not nova_altura:
-                st.warning("Preencha todos os campos obrigatórios (*).")
+                str_lit.warning("Preencha todos os campos obrigatórios (*).")
             else:
-                df_atual = st.session_state["df_base"]
+                df_atual = str_lit.session_state["df_base"]
                 col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
                 col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
                 
@@ -282,31 +325,31 @@ elif opcao_menu == "🚚 Mover Produto":
                     if "DATA ATUALIZACAO" in df_atual.columns:
                         df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
-                    st.session_state["df_base"] = df_atual
-                    st.success("✅ Produto movimentado com sucesso!")
+                    str_lit.session_state["df_base"] = df_atual
+                    str_lit.success("✅ Produto movimentado com sucesso!")
                 else:
-                    st.error("Produto não localizado no estoque.")
+                    str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
 # TELA 3: CADASTRAR / OCUPAR
 # =========================================================
 elif opcao_menu == "➕ Cadastrar / Ocupar":
-    st.header("➕ Cadastrar / Ocupar Endereço")
+    str_lit.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
-        with st.form("form_cadastrar"):
-            cod_int = st.text_input("Cód. Interno *").strip().upper()
-            cod_fab = st.text_input("Cód. Fabricante *").strip().upper()
-            desc = st.text_input("Descrição Completa *").strip().upper()
-            rua = st.text_input("Rua *").strip().upper()
-            box = st.text_input("Box *").strip().upper()
-            altura = st.text_input("Altura *").strip().upper()
+        with str_lit.form("form_cadastrar"):
+            cod_int = str_lit.text_input("Cód. Interno *").strip().upper()
+            cod_fab = str_lit.text_input("Cód. Fabricante *").strip().upper()
+            desc = str_lit.text_input("Descrição Completa *").strip().upper()
+            rua = str_lit.text_input("Rua *").strip().upper()
+            box = str_lit.text_input("Box *").strip().upper()
+            altura = str_lit.text_input("Altura *").strip().upper()
             
-            btn_cad = st.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
+            btn_cad = str_lit.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
             if btn_cad:
                 if not (cod_int and cod_fab and desc and rua and box and altura):
-                    st.warning("Preencha todos os campos obrigatórios (*).")
+                    str_lit.warning("Preencha todos os campos obrigatórios (*).")
                 else:
-                    df_atual = st.session_state["df_base"]
+                    df_atual = str_lit.session_state["df_base"]
                     novo_registro = {
                         "CODINTERNO": cod_int,
                         "CODFAB": cod_fab,
@@ -320,21 +363,21 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     }
                     df_atual = pd.concat([df_atual, pd.DataFrame([novo_registro])], ignore_index=True)
                     salvar_dados(df_atual)
-                    st.session_state["df_base"] = df_atual
-                    st.success("✅ Novo produto cadastrado/endereçado com sucesso!")
+                    str_lit.session_state["df_base"] = df_atual
+                    str_lit.success("✅ Novo produto cadastrado/endereçado com sucesso!")
 
 # =========================================================
 # TELA 4: LIMPAR ENDEREÇO
 # =========================================================
 elif opcao_menu == "🧹 Limpar Endereço":
-    st.header("🧹 Desocupar / Limpar Endereço")
+    str_lit.header("🧹 Desocupar / Limpar Endereço")
     if validar_admin():
-        with st.form("form_limpar"):
-            cod_limp = st.text_input("Código Interno ou Fabricante a Desocupar *").strip().upper()
-            btn_limp = st.form_submit_button("Desocupar Endereço", use_container_width=True)
+        with str_lit.form("form_limpar"):
+            cod_limp = str_lit.text_input("Código Interno ou Fabricante a Desocupar *").strip().upper()
+            btn_limp = str_lit.form_submit_button("Desocupar Endereço", use_container_width=True)
             
             if btn_limp:
-                df_atual = st.session_state["df_base"]
+                df_atual = str_lit.session_state["df_base"]
                 col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
                 col_cf = "CODFAB" if "CODFAB" in df_atual.columns else "COD. FABRICANTE"
                 
@@ -344,20 +387,20 @@ elif opcao_menu == "🧹 Limpar Endereço":
                     if "DATA ATUALIZACAO" in df_atual.columns:
                         df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
-                    st.session_state["df_base"] = df_atual
-                    st.success("✅ Endereço desocupado com sucesso!")
+                    str_lit.session_state["df_base"] = df_atual
+                    str_lit.success("✅ Endereço desocupado com sucesso!")
                 else:
-                    st.error("Produto não localizado no estoque.")
+                    str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
 # TELA 5: IMPORTAÇÃO / ATUALIZAÇÃO DA BASE EM MASSA (ADMIN)
 # =========================================================
 elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
-    st.header("📥 Importação e Atualização da Base em Massa")
+    str_lit.header("📥 Importação e Atualização da Base em Massa")
     if validar_admin():
-        st.write("Faça o upload do arquivo Excel (`.xlsx`) com o mapeamento completo do estoque para atualizar o WMS em tempo real.")
+        str_lit.write("Faça o upload do arquivo Excel (`.xlsx`) com o mapeamento completo do estoque para atualizar o WMS em tempo real.")
         
-        arquivo_enviado = st.file_uploader("Selecione a planilha Excel mapeada", type=["xlsx"])
+        arquivo_enviado = str_lit.file_uploader("Selecione a planilha Excel mapeada", type=["xlsx"])
         
         if arquivo_enviado is not None:
             try:
@@ -369,27 +412,27 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 df_novo = df_novo.fillna("")
                 df_novo.columns = [str(c).strip().upper() for c in df_novo.columns]
                 
-                st.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
-                st.dataframe(df_novo.head(10), use_container_width=True)
+                str_lit.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
+                str_lit.dataframe(df_novo.head(10), use_container_width=True)
                 
-                if st.button("🚀 Confirmar e Atualizar Base do WMS", use_container_width=True):
+                if str_lit.button("🚀 Confirmar e Atualizar Base do WMS", use_container_width=True):
                     salvar_dados(df_novo)
-                    st.session_state["df_base"] = df_novo
-                    st.balloons()
-                    st.success("✅ Base de dados do WMS atualizada com sucesso! O novo mapeamento já está ativo para uso.")
+                    str_lit.session_state["df_base"] = df_novo
+                    str_lit.balloons()
+                    str_lit.success("✅ Base de dados do WMS atualizada com sucesso! O novo mapeamento já está ativo para uso.")
             except Exception as e:
-                st.error(f"Erro ao processar o arquivo Excel: {e}")
+                str_lit.error(f"Erro ao processar o arquivo Excel: {e}")
 
 # =========================================================
 # TELA 6: BACKUP E HISTÓRICO
 # =========================================================
 elif opcao_menu == "💾 Backup e Histórico":
-    st.header("💾 Backup e Exportação da Base")
-    st.write("Baixe uma cópia da base de estoque atualizada:")
+    str_lit.header("💾 Backup e Exportação da Base")
+    str_lit.write("Baixe uma cópia da base de estoque atualizada:")
     
     if os.path.exists(ARQUIVO_EXCEL):
         with open(ARQUIVO_EXCEL, "rb") as f:
-            st.download_button(
+            str_lit.download_button(
                 label="📥 Baixar Base_Estoque.xlsx Atualizada",
                 data=f,
                 file_name=f"Backup_WMS_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
@@ -401,68 +444,67 @@ elif opcao_menu == "💾 Backup e Histórico":
 # TELA 7: GERENCIAMENTO DE USUÁRIOS (ADMIN)
 # =========================================================
 elif opcao_menu == "👥 Gerenciar Usuários":
-    st.header("👥 Gerenciamento de Colaboradores e Acessos")
+    str_lit.header("👥 Gerenciamento de Colaboradores e Acessos")
     if validar_admin():
-        # Atualiza a referência dos usuários na tela
-        st.session_state["usuarios_db"] = carregar_usuarios()
-        db = st.session_state["usuarios_db"]
+        str_lit.session_state["usuarios_db"] = carregar_usuarios()
+        db = str_lit.session_state["usuarios_db"]
         
         dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
-        st.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+        str_lit.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
         
-        st.divider()
-        st.subheader("🔑 Alterar Senha de Usuário")
+        str_lit.divider()
+        str_lit.subheader("🔑 Alterar Senha de Usuário")
         
-        col_alt1, col_alt2 = st.columns(2)
+        col_alt1, col_alt2 = str_lit.columns(2)
         with col_alt1:
-            usuario_para_alterar = st.selectbox("Selecione o usuário para alterar a senha", list(db.keys()), key="sel_alt_user")
+            usuario_para_alterar = str_lit.selectbox("Selecione o usuário para alterar a senha", list(db.keys()), key="sel_alt_user")
         with col_alt2:
-            nova_senha_input = st.text_input("Nova Senha", type="password", key="txt_nova_senha")
+            nova_senha_input = str_lit.text_input("Nova Senha", type="password", key="txt_nova_senha")
             
-        if st.button("💾 Salvar Nova Senha", use_container_width=True):
+        if str_lit.button("💾 Salvar Nova Senha", use_container_width=True):
             if not nova_senha_input:
-                st.warning("Digite a nova senha.")
+                str_lit.warning("Digite a nova senha.")
             else:
                 db[usuario_para_alterar]["senha"] = nova_senha_input
                 salvar_usuarios(db)
-                st.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
+                str_lit.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
         
-        st.divider()
-        st.subheader("Cadastrar Novo Colaborador")
+        str_lit.divider()
+        str_lit.subheader("Cadastrar Novo Colaborador")
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = str_lit.columns(3)
         with col1:
-            novo_usuario = st.text_input("Nome de Usuário").strip().lower()
+            novo_usuario = str_lit.text_input("Nome de Usuário").strip().lower()
         with col2:
-            nova_senha = st.text_input("Senha", type="password")
+            nova_senha = str_lit.text_input("Senha", type="password")
         with col3:
-            novo_perfil = st.selectbox("Perfil", ["OPERADOR", "ADMIN"])
+            novo_perfil = str_lit.selectbox("Perfil", ["OPERADOR", "ADMIN"])
         
-        if st.button("Cadastrar Usuário", use_container_width=True):
+        if str_lit.button("Cadastrar Usuário", use_container_width=True):
             if not novo_usuario or not nova_senha:
-                st.warning("Preencha o usuário e a senha.")
+                str_lit.warning("Preencha o usuário e a senha.")
             elif novo_usuario in db:
-                st.error("Este usuário já existe!")
+                str_lit.error("Este usuário já existe!")
             else:
                 db[novo_usuario] = {
                     "senha": nova_senha,
                     "perfil": novo_perfil
                 }
                 salvar_usuarios(db)
-                st.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
-                st.rerun()
+                str_lit.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
+                str_lit.rerun()
                 
-        st.divider()
-        st.subheader("Remover Usuário")
+        str_lit.divider()
+        str_lit.subheader("Remover Usuário")
         
         usuarios_removiveis = [u for u in db.keys() if u != "admin"]
         if usuarios_removiveis:
-            usuario_para_remover = st.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
-            if st.button("Excluir Usuário Selecionado", type="primary"):
+            usuario_para_remover = str_lit.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
+            if str_lit.button("Excluir Usuário Selecionado", type="primary"):
                 if usuario_para_remover in db:
                     del db[usuario_para_remover]
                     salvar_usuarios(db)
-                    st.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
-                    st.rerun()
+                    str_lit.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
+                    str_lit.rerun()
         else:
-            st.info("Não há outros usuários cadastrados para remoção.")
+            str_lit.info("Não há outros usuários cadastrados para remoção.")
