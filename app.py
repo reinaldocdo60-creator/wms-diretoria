@@ -816,30 +816,47 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    # Usando a biblioteca tradicional que aceita chaves AQ. sem conflito de token
-                    import google.generativeai as genai
+                    import requests
+                    import json
                     
                     # Cole aqui a sua chave completa que começa com AQ.
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Configura a chave globalmente na biblioteca
-                    genai.configure(api_key=api_key_valor)
+                    # Endpoint oficial do Gemini via REST API (v1beta)
+                    url_api = "https://googleapis.com"
+                    
+                    # Cabeçalhos explícitos que garantem o funcionamento da chave AQ.
+                    headers = {
+                        "x-goog-api-key": api_key_valor,
+                        "Content-Type": application/json"
+                    }
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Inicializa o modelo correto do Gemini
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    # Monta o corpo da requisição exatamente no padrão esperado pelo Google
+                    payload = {
+                        "contents": [{
+                            "parts": [{
+                                "text": f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
+                            }]
+                        }]
+                    }
                     
-                    # Envia a instrução com a dúvida do usuário
-                    response = model.generate_content(
-                        f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
-                    )
+                    # Realiza a chamada HTTP direta sem depender de SDKs instáveis
+                    response = requests.post(url_api, headers=headers, json=payload)
                     
-                    resposta_ia = response.text
-                    str_lit.markdown(resposta_ia)
-                    str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+                    if response.status_code == 200:
+                        dados_resposta = response.json()
+                        # Extrai o texto da estrutura JSON do Gemini
+                        resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        str_lit.markdown(resposta_ia)
+                        str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+                    else:
+                        str_lit.error(f"Erro na API ({response.status_code}): {response.text}")
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
