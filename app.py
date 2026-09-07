@@ -302,7 +302,6 @@ opcoes_menu = [
 ]
 
 if str_lit.session_state["perfil"] == "ADMIN":
-    # Se quiser restringir 'Gerenciar Usuários', insere no menu apropriadamente
     opcoes_menu.insert(6, "👥 Gerenciar Usuários")
 
 opcao_menu = str_lit.sidebar.radio("Navegação Principal", opcoes_menu)
@@ -365,7 +364,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             str_lit.rerun()
 
     q_busca = str_lit.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
-    q_valid = str_lit.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante):", key="q_valid").strip().upper()
+    q_valid = str_lit.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante ou Interno da peça separada):", key="q_valid").strip().upper()
 
     df_res = str_lit.session_state.get("df_base", carregar_dados()).copy()
     df_res.columns = [str(c).strip().upper() for c in df_res.columns]
@@ -409,14 +408,21 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         str_lit.markdown("### Linhas Congeladas")
         str_lit.table(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()))
 
+    # VALIDAÇÃO BASEADA NO RETORNO DA PESQUISA ATUAL
     if q_valid:
-        df_total = str_lit.session_state.get("df_base", carregar_dados())
-        df_total.columns = [str(c).strip().upper() for c in df_total.columns]
-        
-        if not df_total.empty and "CODFAB" in df_total.columns and (df_total["CODFAB"].astype(str).str.upper() == q_valid).any():
-            str_lit.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
+        if not q_busca:
+            str_lit.warning("⚠️ Para validar, faça primeiro uma pesquisa para trazer o item esperado na tela.")
+        elif df_res.empty:
+            str_lit.error("❌ VALIDAÇÃO FALHOU: Nenhum item encontrado na pesquisa atual para validar.")
         else:
-            str_lit.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
+            # Verifica se o código validado (bipado) bate com o CODINTERNO ou CODFAB presente no resultado filtrado (df_res)
+            match_interno = (df_res["CODINTERNO"].astype(str).str.upper() == q_valid).any()
+            match_fab = (df_res["CODFAB"].astype(str).str.upper() == q_valid).any()
+            
+            if match_interno or match_fab:
+                str_lit.success(f"✅ VALIDAÇÃO OK! O código '{q_valid}' confere com o item pesquisado/separado.")
+            else:
+                str_lit.error(f"❌ ATENÇÃO: O código '{q_valid}' NÃO CONFERE com os itens listados na pesquisa atual! Verifique se a peça está correta.")
 
 # =========================================================
 # TELA 2: MOVER PRODUTO
@@ -609,7 +615,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 str_lit.error(f"Erro ao processar o arquivo Excel: {e}")
 
 # =========================================================
-# TELA 6: SUGESTÃO DE INVENTÁRIO MENSAL (NOVO)
+# TELA 6: SUGESTÃO DE INVENTÁRIO MENSAL
 # =========================================================
 elif opcao_menu == "📊 Sugestão de Inventário Mensal":
     str_lit.header("📊 Sugestão de Inventário por Amostragem")
@@ -618,7 +624,6 @@ elif opcao_menu == "📊 Sugestão de Inventário Mensal":
     df_amostra = str_lit.session_state.get("df_base", carregar_dados()).copy()
     
     if not df_amostra.empty:
-        # Pega os primeiros 10 registros principais como amostra sugerida do mês
         df_sugestao_10 = df_amostra.head(10)
         str_lit.write(f"Exibindo os **10 produtos sugeridos** para a verificação de amostragem deste período:")
         str_lit.table(df_sugestao_10)
@@ -712,7 +717,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
             str_lit.info("Não há outros usuários cadastrados para remoção.")
 
 # =========================================================
-# TELA 9: MANUAL DE INSTRUÇÕES (NOVO)
+# TELA 9: MANUAL DE INSTRUÇÕES
 # =========================================================
 elif opcao_menu == "📖 Manual de Instruções":
     str_lit.header("📖 Manual de Instruções e Uso do WMS")
@@ -723,9 +728,9 @@ elif opcao_menu == "📖 Manual de Instruções":
     str_lit.markdown("""
     ### 1. 🔍 Pesquisa e Validação (Geral)
     * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
-    * **Validação:** Use o segundo campo para bipar o código do fabricante. O sistema indicará de forma imediata se o código é válido ou se não foi localizado no estoque.
+    * **Validação (Conferência de Seperação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
     * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
-    * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras laterais, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
+    * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras lateral, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
 
     ### 2. 🚚 Mover Produto
     * Permite alterar o endereço físico de um item existente (Rua, Box, Altura, Caixa, Pallet e PLT) de forma rápida e segura.
