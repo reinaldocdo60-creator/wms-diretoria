@@ -17,7 +17,7 @@ str_lit.set_page_config(
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 
-# Ordem oficial exigida pelo seu fluxo e importação em massa
+# Ordem oficial e unificada exigida em todo o sistema e importação
 COLUNAS_PADRAO = [
     "GARANTIA", 
     "CODINTERNO", 
@@ -317,19 +317,23 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             str_lit.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
 
 # =========================================================
-# TELA 2: MOVER PRODUTO
+# TELA 2: MOVER PRODUTO (SEGUINDO A ORDEM LÓGICA)
 # =========================================================
 elif opcao_menu == "🚚 Mover Produto":
     str_lit.header("🚚 Movimentação Interna de Produto")
     
     with str_lit.form("form_mover"):
         cod_mover = str_lit.text_input("Código do Produto (Interno ou Fabricante) *").strip().upper()
-        nova_rua = str_lit.text_input("Nova Rua *").strip().upper()
-        novo_box = str_lit.text_input("Novo Box *").strip().upper()
-        nova_altura = str_lit.text_input("Nova Altura *").strip().upper()
-        novo_pallet = str_lit.text_input("Novo Pallet").strip().upper()
-        novo_plt = str_lit.text_input("Novo PLT").strip().upper()
-        nova_caixa = str_lit.text_input("Nova Caixa").strip().upper()
+        
+        col_m1, col_m2 = str_lit.columns(2)
+        with col_m1:
+            nova_rua = str_lit.text_input("Nova Rua *").strip().upper()
+            novo_box = str_lit.text_input("Novo Box *").strip().upper()
+            nova_altura = str_lit.text_input("Nova Altura *").strip().upper()
+        with col_m2:
+            nova_caixa = str_lit.text_input("Nova Caixa").strip().upper()
+            novo_pallet = str_lit.text_input("Novo Pallet").strip().upper()
+            novo_plt = str_lit.text_input("Novo PLT").strip().upper()
         
         btn_mover = str_lit.form_submit_button("Confirmar Movimentação", use_container_width=True)
         
@@ -343,12 +347,12 @@ elif opcao_menu == "🚚 Mover Produto":
                     df_atual.loc[idx, "RUA"] = nova_rua
                     df_atual.loc[idx, "BOX"] = novo_box
                     df_atual.loc[idx, "ALTURA"] = nova_altura
+                    if nova_caixa:
+                        df_atual.loc[idx, "CAIXA"] = nova_caixa
                     if novo_pallet:
                         df_atual.loc[idx, "PALLET"] = novo_pallet
                     if novo_plt:
                         df_atual.loc[idx, "PLT"] = novo_plt
-                    if nova_caixa:
-                        df_atual.loc[idx, "CAIXA"] = nova_caixa
                         
                     if "DATA ATUALIZACAO" in df_atual.columns:
                         df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -359,7 +363,7 @@ elif opcao_menu == "🚚 Mover Produto":
                     str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
-# TELA 3: CADASTRAR / OCUPAR (NA ORDEM EXATA INFORMADA)
+# TELA 3: CADASTRAR / OCUPAR (NA ORDEM EXATA)
 # =========================================================
 elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar / Ocupar Endereço")
