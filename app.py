@@ -177,7 +177,7 @@ opcoes_menu = [
     "🔍 Pesquisa e Validação (Geral)",
     "🚚 Mover Produto",
     "➕ Cadastrar / Ocupar",
-    "🧹 Limpar Endereço",
+    "🧹 Limpar Endereço / Excluir Linha",
     "📥 Importar / Atualizar Base em Massa",
     "💾 Backup e Histórico"
 ]
@@ -246,46 +246,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     tab1, tab2 = str_lit.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(str_lit.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
-        # st.table usado para fixar permanentemente o cabeçalho e impedir alterações de colunas pelo usuário
         str_lit.table(df_res)
-        
-        if str_lit.session_state["perfil"] == "ADMIN" and not df_res.empty:
-            str_lit.markdown("---")
-            str_lit.subheader("⚙️ Ação Rápida de Administrador (Desocupar Endereço)")
-            str_lit.write("Selecione um dos produtos encontrados acima para limpar o endereço instantaneamente:")
-            
-            opcoes_desocupar = []
-            mapa_opcoes = {}
-            for _, r in df_res.iterrows():
-                ci = str(r.get("CODINTERNO", ""))
-                cf = str(r.get("CODFAB", ""))
-                desc = str(r.get("DESCRICAO", ""))
-                rua = str(r.get("RUA", ""))
-                box = str(r.get("BOX", ""))
-                rotulo = f"Cód. Int: {ci} | Cód. Fab: {cf} | {desc} (End: Rua {rua}, Box {box})"
-                opcoes_desocupar.append(rotulo)
-                mapa_opcoes[rotulo] = ci if ci else cf
-
-            if opcoes_desocupar:
-                col_sel_adm, col_btn_adm = str_lit.columns([3, 1])
-                with col_sel_adm:
-                    item_escolhido = str_lit.selectbox("Escolha o produto da lista acima para desocupar:", opcoes_desocupar, key="sel_desocupar_rapido")
-                with col_btn_adm:
-                    str_lit.write("") 
-                    str_lit.write("")
-                    if str_lit.button("🗑️ Desocupar Endereço", use_container_width=True, type="primary"):
-                        codigo_alvo = mapa_opcoes[item_escolhido]
-                        df_atual = str_lit.session_state["df_base"]
-                        
-                        idx = df_atual[(df_atual["CODINTERNO"].str.upper() == codigo_alvo.upper()) | (df_atual["CODFAB"].str.upper() == codigo_alvo.upper())].index
-                        if not idx.empty:
-                            df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
-                            if "DATA ATUALIZACAO" in df_atual.columns:
-                                df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            salvar_dados(df_atual)
-                            str_lit.session_state["df_base"] = df_atual
-                            str_lit.success(f"✅ Endereço do produto '{codigo_alvo}' limpo com sucesso!")
-                            str_lit.rerun()
 
     with tab2:
         str_lit.table(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()))
@@ -395,27 +356,69 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     str_lit.success("✅ Novo produto cadastrado/endereçado com sucesso!")
 
 # =========================================================
-# TELA 4: LIMPAR ENDEREÇO
+# TELA 4: LIMPAR ENDEREÇO / EXCLUIR LINHA
 # =========================================================
-elif opcao_menu == "🧹 Limpar Endereço":
-    str_lit.header("🧹 Desocupar / Limpar Endereço")
+elif opcao_menu == "🧹 Limpar Endereço / Excluir Linha":
+    str_lit.header("🧹 Gerenciamento de Exclusão de Endereços/Linhas")
     if validar_admin():
-        with str_lit.form("form_limpar"):
-            cod_limp = str_lit.text_input("Código Interno ou Fabricante a Desocupar *").strip().upper()
-            btn_limp = str_lit.form_submit_button("Desocupar Endereço", use_container_width=True)
+        str_lit.write("Digite o código (Interno ou Fabricante) para localizar todas as ocorrências e linhas associadas a ele:")
+        
+        cod_busca_limpeza = str_lit.text_input("Código para consulta de exclusão *").strip().upper()
+        
+        if cod_busca_limpeza:
+            df_atual = str_lit.session_state["df_base"]
+            df_encontrados = df_atual[
+                (df_atual["CODINTERNO"].str.upper() == cod_busca_limpeza) | 
+                (df_atual["CODFAB"].str.upper() == cod_busca_limpeza)
+            ]
             
-            if btn_limp:
-                df_atual = str_lit.session_state["df_base"]
-                idx = df_atual[(df_atual["CODINTERNO"].str.upper() == cod_limp) | (df_atual["CODFAB"].str.upper() == cod_limp)].index
-                if not idx.empty:
-                    df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
-                    if "DATA ATUALIZACAO" in df_atual.columns:
-                        df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    salvar_dados(df_atual)
-                    str_lit.session_state["df_base"] = df_atual
-                    str_lit.success("✅ Endereço desocupado com sucesso!")
-                else:
-                    str_lit.error("Produto não localizado no estoque.")
+            total_ocorrencias = len(df_encontrados)
+            
+            if total_ocorrencias > 0:
+                str_lit.warning(f"⚠️ Atenção! Foram encontradas **{total_ocorrencias}** ocorrência(s) (endereço(s)) para o código **{cod_busca_limpeza}**.")
+                
+                df_exibicao = df_encontrados.copy()
+                df_exibicao.insert(0, "LINHA_EXCEL", [idx + 2 for idx in df_encontrados.index])
+                str_lit.table(df_exibicao)
+                
+                str_lit.markdown("---")
+                str_lit.subheader("🗑️ Opções de Exclusão")
+                
+                opcoes_linhas = []
+                mapa_linhas = {}
+                for idx_real, r in df_encontrados.iterrows():
+                    linha_excel = idx_real + 2
+                    rua = r.get("RUA", "-")
+                    box = r.get("BOX", "-")
+                    texto_opcao = f"Linha {linha_excel} da Planilha (Rua: {rua}, Box: {box})"
+                    opcoes_linhas.append(texto_opcao)
+                    mapa_linhas[texto_opcao] = idx_real
+                
+                col_ex1, col_ex2 = str_lit.columns(2)
+                
+                with col_ex1:
+                    str_lit.write("**Excluir apenas uma linha específica:**")
+                    linha_escolhida = str_lit.selectbox("Selecione qual linha deseja excluir:", opcoes_linhas, key="sel_linha_excluir")
+                    if str_lit.button("🔥 Excluir Linha Selecionada", use_container_width=True, type="primary"):
+                        idx_alvo = mapa_linhas[linha_escolhida]
+                        df_atual = df_atual.drop(idx_alvo).reset_index(drop=True)
+                        salvar_dados(df_atual)
+                        str_lit.session_state["df_base"] = df_atual
+                        str_lit.success("✅ Linha selecionada excluída com sucesso!")
+                        str_lit.rerun()
+                        
+                with col_ex2:
+                    str_lit.write("**Excluir TODAS as ocorrências deste código:**")
+                    str_lit.write("") 
+                    if str_lit.button(f"🚨 Excluir TODAS as {total_ocorrencias} linhas deste código", use_container_width=True, type="primary"):
+                        indices_alvo = df_encontrados.index
+                        df_atual = df_atual.drop(indices_alvo).reset_index(drop=True)
+                        salvar_dados(df_atual)
+                        str_lit.session_state["df_base"] = df_atual
+                        str_lit.success(f"✅ Todas as {total_ocorrencias} ocorrências do código '{cod_busca_limpeza}' foram excluídas com sucesso!")
+                        str_lit.rerun()
+            else:
+                str_lit.info(f"Nenhum registro encontrado com o código '{cod_busca_limpeza}'.")
 
 # =========================================================
 # TELA 5: IMPORTAÇÃO / ATUALIZAÇÃO DA BASE EM MASSA
