@@ -82,7 +82,7 @@ if "q_valid" not in str_lit.session_state:
 # =========================================================
 @str_lit.cache_data(ttl=2)
 def carregar_dados():
-    colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "GARANTIA", "CAIXA", "DATA ATUALIZACAO"]
+    colunas_padrao = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             try:
@@ -92,6 +92,12 @@ def carregar_dados():
             
             df = df.fillna("")
             df.columns = [str(c).strip().upper() for c in df.columns]
+            
+            # Garante que colunas novas existam caso o arquivo seja antigo
+            for col in colunas_padrao:
+                if col not in df.columns:
+                    df[col] = ""
+                    
             return df
         except Exception:
             return pd.DataFrame(columns=colunas_padrao)
@@ -215,6 +221,10 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                 mask = mask | df_res["BOX"].astype(str).str.upper().str.contains(q_busca, regex=False)
             if "ALTURA" in df_res.columns:
                 mask = mask | df_res["ALTURA"].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if "PALLET" in df_res.columns:
+                mask = mask | df_res["PALLET"].astype(str).str.upper().str.contains(q_busca, regex=False)
+            if "PLT" in df_res.columns:
+                mask = mask | df_res["PLT"].astype(str).str.upper().str.contains(q_busca, regex=False)
                 
             df_res = df_res[mask]
         except Exception as e:
@@ -272,7 +282,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                         
                         idx = df_atual[(df_atual[col_ci_key].str.upper() == codigo_alvo.upper()) | (df_atual[col_cf_key].str.upper() == codigo_alvo.upper())].index
                         if not idx.empty:
-                            df_atual.loc[idx, ["RUA", "BOX", "ALTURA"]] = ""
+                            df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
                             if "DATA ATUALIZACAO" in df_atual.columns:
                                 df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             salvar_dados(df_atual)
@@ -306,12 +316,15 @@ elif opcao_menu == "🚚 Mover Produto":
         nova_rua = str_lit.text_input("Nova Rua *").strip().upper()
         novo_box = str_lit.text_input("Novo Box *").strip().upper()
         nova_altura = str_lit.text_input("Nova Altura *").strip().upper()
+        novo_pallet = str_lit.text_input("Novo Pallet").strip().upper()
+        novo_plt = str_lit.text_input("Novo PLT").strip().upper()
+        nova_caixa = str_lit.text_input("Nova Caixa").strip().upper()
         
         btn_mover = str_lit.form_submit_button("Confirmar Movimentação", use_container_width=True)
         
         if btn_mover:
             if not cod_mover or not nova_rua or not novo_box or not nova_altura:
-                str_lit.warning("Preencha todos os campos obrigatórios (*).")
+                str_lit.warning("Preencha os campos obrigatórios (*).")
             else:
                 df_atual = str_lit.session_state["df_base"]
                 col_ci = "CODINTERNO" if "CODINTERNO" in df_atual.columns else "COD. INTERNO"
@@ -322,6 +335,13 @@ elif opcao_menu == "🚚 Mover Produto":
                     df_atual.loc[idx, "RUA"] = nova_rua
                     df_atual.loc[idx, "BOX"] = novo_box
                     df_atual.loc[idx, "ALTURA"] = nova_altura
+                    if novo_pallet:
+                        df_atual.loc[idx, "PALLET"] = novo_pallet
+                    if novo_plt:
+                        df_atual.loc[idx, "PLT"] = novo_plt
+                    if nova_caixa:
+                        df_atual.loc[idx, "CAIXA"] = nova_caixa
+                        
                     if "DATA ATUALIZACAO" in df_atual.columns:
                         df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
@@ -337,12 +357,19 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
         with str_lit.form("form_cadastrar"):
-            cod_int = str_lit.text_input("Cód. Interno *").strip().upper()
-            cod_fab = str_lit.text_input("Cód. Fabricante *").strip().upper()
-            desc = str_lit.text_input("Descrição Completa *").strip().upper()
-            rua = str_lit.text_input("Rua *").strip().upper()
-            box = str_lit.text_input("Box *").strip().upper()
-            altura = str_lit.text_input("Altura *").strip().upper()
+            col_c1, col_c2 = str_lit.columns(2)
+            with col_c1:
+                cod_int = str_lit.text_input("Cód. Interno *").strip().upper()
+                cod_fab = str_lit.text_input("Cód. Fabricante *").strip().upper()
+                desc = str_lit.text_input("Descrição Completa *").strip().upper()
+                rua = str_lit.text_input("Rua *").strip().upper()
+                box = str_lit.text_input("Box *").strip().upper()
+            with col_c2:
+                altura = str_lit.text_input("Altura *").strip().upper()
+                pallet = str_lit.text_input("Pallet").strip().upper()
+                plt = str_lit.text_input("PLT").strip().upper()
+                caixa = str_lit.text_input("Caixa").strip().upper()
+                garantia = str_lit.text_input("Garantia").strip().upper()
             
             btn_cad = str_lit.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
             if btn_cad:
@@ -357,8 +384,10 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                         "RUA": rua,
                         "BOX": box,
                         "ALTURA": altura,
-                        "GARANTIA": "",
-                        "CAIXA": "",
+                        "PALLET": pallet,
+                        "PLT": plt,
+                        "CAIXA": caixa,
+                        "GARANTIA": garantia,
                         "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
                     df_atual = pd.concat([df_atual, pd.DataFrame([novo_registro])], ignore_index=True)
@@ -383,7 +412,7 @@ elif opcao_menu == "🧹 Limpar Endereço":
                 
                 idx = df_atual[(df_atual[col_ci].str.upper() == cod_limp) | (df_atual[col_cf].str.upper() == cod_limp)].index
                 if not idx.empty:
-                    df_atual.loc[idx, ["RUA", "BOX", "ALTURA"]] = ""
+                    df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
                     if "DATA ATUALIZACAO" in df_atual.columns:
                         df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     salvar_dados(df_atual)
