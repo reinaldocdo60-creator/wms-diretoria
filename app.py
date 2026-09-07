@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+import uuid
 import hashlib
 from contextlib import contextmanager
 from datetime import datetime
@@ -21,8 +22,8 @@ st.set_page_config(
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 ARQUIVO_LOCK = ARQUIVO_EXCEL + ".lock"
 
-# Ordem oficial e unificada exigida em todo o sistema e importação
-COLUNAS_PADRAO = [
+# Campos de negócio (o que o usuário vê e preenche)
+COLUNAS_NEGOCIO = [
     "GARANTIA",
     "CODINTERNO",
     "CODFAB",
@@ -35,6 +36,12 @@ COLUNAS_PADRAO = [
     "PLT",
     "DATA ATUALIZACAO"
 ]
+
+# ID_ENDERECO é um identificador interno único por linha/endereço. Como o
+# mesmo CODINTERNO pode existir em vários endereços ao mesmo tempo, esse ID
+# é o que garante que "mover" ou "limpar" afete SÓ o endereço escolhido —
+# nunca todas as linhas que compartilham o mesmo código.
+COLUNAS_PADRAO = COLUNAS_NEGOCIO + ["ID_ENDERECO"]
 
 
 # =========================================================
@@ -77,6 +84,24 @@ def _eh_hash_valido(valor):
 
 
 # =========================================================
+# IDs ÚNICOS DE ENDEREÇO
+# =========================================================
+def _preencher_ids_faltantes(df):
+    """Garante que toda linha tenha um ID_ENDERECO único (gera os que
+    estiverem em branco — linhas antigas, recém-importadas, etc).
+    Retorna (df_atualizado, precisou_gerar_algum: bool)."""
+    df = df.copy()
+    if "ID_ENDERECO" not in df.columns:
+        df["ID_ENDERECO"] = ""
+    df["ID_ENDERECO"] = df["ID_ENDERECO"].fillna("").astype(str)
+    faltando = df["ID_ENDERECO"].str.strip() == ""
+    precisou = bool(faltando.any())
+    if precisou:
+        df.loc[faltando, "ID_ENDERECO"] = [str(uuid.uuid4()) for _ in range(int(faltando.sum()))]
+    return df, precisou
+
+
+# =========================================================
 # GERENCIAMENTO DE USUÁRIOS E SENHAS
 # =========================================================
 def carregar_usuarios():
@@ -107,7 +132,8 @@ def carregar_usuarios():
 
 def _ler_base_bruta():
     """Leitura direta do disco, sem cache — usada nas operações de escrita
-    para minimizar a janela de tempo entre ler e salvar os dados."""
+    para minimizar a janela de tempo entre ler e salvar os dados. Preenche
+    IDs faltantes só em memória (não salva sozinha; quem chamar decide)."""
     if not os.path.exists(ARQUIVO_EXCEL):
         return pd.DataFrame(columns=COLUNAS_PADRAO)
     try:
@@ -115,7 +141,6 @@ def _ler_base_bruta():
         if "Base_Dados" in xl.sheet_names:
             df = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
         else:
-            # Evita ler a aba "Usuarios" por engano caso "Base_Dados" não exista
             outras_abas = [s for s in xl.sheet_names if s != "Usuarios"]
             if outras_abas:
                 df = pd.read_excel(ARQUIVO_EXCEL, sheet_name=outras_abas[0], dtype=str)
@@ -129,7 +154,9 @@ def _ler_base_bruta():
     for col in COLUNAS_PADRAO:
         if col not in df.columns:
             df[col] = ""
-    return df[COLUNAS_PADRAO]
+    df = df[COLUNAS_PADRAO]
+    df, _ = _preencher_ids_faltantes(df)
+    return df
 
 
 def salvar_usuarios(db):
@@ -194,6 +221,7 @@ def salvar_dados(df):
     lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
     df_user = pd.DataFrame(lista_user)
 
+    df, _ = _preencher_ids_faltantes(df)
     df = df.fillna("")
     for col in COLUNAS_PADRAO:
         if col not in df.columns:
@@ -213,9 +241,29 @@ def salvar_dados(df):
 
 
 if "df_base" not in st.session_state:
-    st.session_state["df_base"] = carregar_dados()
+    df_inicial = carregar_dados()
+    # Migração única por sessão: se a base ainda não tem ID_ENDERECO
+    # preenchido em todas as linhas (base antiga, importação anterior),
+    # gera e persiste agora.
+    df_inicial, precisou_migrar = _preencher_ids_faltantes(df_inicial)
+    if precisou_migrar:
+        salvar_dados(df_inicial)
+        carregar_dados.clear()
+        df_inicial = carregar_dados()
+    st.session_state["df_base"] = df_inicial
 
 df_base = st.session_state["df_base"]
+
+
+def _rotulo_endereco(row):
+    """Monta um texto legível para o usuário identificar um endereço
+    específico quando o mesmo Código Interno aparece em vários lugares."""
+    return (
+        f"Rua {row.get('RUA', '') or '—'} | Box {row.get('BOX', '') or '—'} | "
+        f"Caixa {row.get('CAIXA', '') or '—'} | Altura {row.get('ALTURA', '') or '—'} "
+        f"— {row.get('DESCRICAO', '')}"
+    )
+
 
 # =========================================================
 # TELA DE LOGIN
@@ -318,7 +366,9 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     if q_busca and not df_res.empty:
         try:
             mask = pd.Series(False, index=df_res.index)
-            for col in COLUNAS_PADRAO:
+            # Busca só nos campos de negócio — ID_ENDERECO é um UUID interno
+            # e não faz sentido pesquisável pelo usuário.
+            for col in COLUNAS_NEGOCIO:
                 if col in df_res.columns:
                     mask = mask | df_res[col].astype(str).str.upper().str.contains(q_busca, regex=False)
             df_res = df_res[mask]
@@ -330,7 +380,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     if st.button("❄️ CONGELAR LINHAS DA PESQUISA", use_container_width=True):
         if not df_res.empty:
             congeladas_atuais = st.session_state.get("linhas_congeladas", pd.DataFrame())
-            st.session_state["linhas_congeladas"] = pd.concat([congeladas_atuais, df_res]).drop_duplicates()
+            st.session_state["linhas_congeladas"] = pd.concat([congeladas_atuais, df_res]).drop_duplicates(subset=["ID_ENDERECO"])
             st.success("Linhas congeladas com sucesso!")
 
     if st.button("🔥 LIMPAR LINHAS CONGELADAS", use_container_width=True):
@@ -340,7 +390,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     tab1, tab2 = st.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(st.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
-        st.dataframe(df_res, use_container_width=True)
+        st.dataframe(df_res.drop(columns=["ID_ENDERECO"], errors="ignore"), use_container_width=True)
 
         if st.session_state["perfil"] == "ADMIN" and not df_res.empty:
             st.markdown("---")
@@ -352,60 +402,78 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             for _, r in df_res.iterrows():
                 ci = str(r.get("CODINTERNO", ""))
                 cf = str(r.get("CODFAB", ""))
-                desc = str(r.get("DESCRICAO", ""))
-                rua = str(r.get("RUA", ""))
-                box = str(r.get("BOX", ""))
-                rotulo = f"Cód. Int: {ci} | Cód. Fab: {cf} | {desc} (End: Rua {rua}, Box {box})"
+                rotulo = f"Cód. Int: {ci} | Cód. Fab: {cf} | {_rotulo_endereco(r)}"
                 opcoes_desocupar.append(rotulo)
-                mapa_opcoes[rotulo] = ci if ci else cf
+                # Mapeia pelo ID_ENDERECO único da linha, não pelo código —
+                # assim a ação afeta só ESTE endereço, mesmo que o mesmo
+                # código exista em outros lugares.
+                mapa_opcoes[rotulo] = r["ID_ENDERECO"]
 
             if opcoes_desocupar:
                 col_sel_adm, col_btn_adm = st.columns([3, 1])
                 with col_sel_adm:
-                    item_escolhido = st.selectbox("Escolha o produto da lista acima para desocupar:", opcoes_desocupar, key="sel_desocupar_rapido")
+                    item_escolhido = st.selectbox("Escolha o endereço da lista acima para desocupar:", opcoes_desocupar, key="sel_desocupar_rapido")
                 with col_btn_adm:
                     st.write("")
                     st.write("")
                     if st.button("🗑️ Desocupar Endereço", use_container_width=True, type="primary"):
-                        codigo_alvo = mapa_opcoes[item_escolhido]
+                        id_alvo = mapa_opcoes[item_escolhido]
                         # Lê a base direto do disco antes de alterar, para não
                         # sobrescrever mudanças feitas por outra sessão/usuário
                         # enquanto esta ficava aberta.
                         df_atual = _ler_base_bruta()
 
-                        idx = df_atual[(df_atual["CODINTERNO"].str.upper() == codigo_alvo.upper()) | (df_atual["CODFAB"].str.upper() == codigo_alvo.upper())].index
+                        idx = df_atual[df_atual["ID_ENDERECO"] == id_alvo].index
                         if not idx.empty:
                             df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
                             if "DATA ATUALIZACAO" in df_atual.columns:
                                 df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             if salvar_dados(df_atual):
                                 st.session_state["df_base"] = df_atual
-                                st.success(f"✅ Endereço do produto '{codigo_alvo}' limpo com sucesso!")
+                                st.success("✅ Endereço limpo com sucesso!")
                                 st.rerun()
                         else:
-                            st.error("Produto não encontrado (a base pode ter mudado). Atualize a página e tente novamente.")
+                            st.error("Esse endereço não existe mais na base (pode ter sido alterado por outra pessoa). Atualize a página e tente novamente.")
 
     with tab2:
-        st.dataframe(st.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
+        st.dataframe(st.session_state.get("linhas_congeladas", pd.DataFrame()).drop(columns=["ID_ENDERECO"], errors="ignore"), use_container_width=True)
 
     if q_valid:
         df_total = st.session_state.get("df_base", carregar_dados())
         df_total.columns = [str(c).strip().upper() for c in df_total.columns]
 
         if not df_total.empty and "CODFAB" in df_total.columns and (df_total["CODFAB"].astype(str).str.upper() == q_valid).any():
-            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!")
+            qtd_enderecos = (df_total["CODFAB"].astype(str).str.upper() == q_valid).sum()
+            extra = f" (presente em {qtd_enderecos} endereços)" if qtd_enderecos > 1 else ""
+            st.success(f"✅ VALIDAÇÃO OK: Código {q_valid} encontrado no estoque!{extra}")
         else:
             st.error(f"❌ ATENÇÃO: Código {q_valid} NÃO ENCONTRADO no estoque!")
 
 # =========================================================
-# TELA 2: MOVER PRODUTO (SEGUINDO A ORDEM LÓGICA)
+# TELA 2: MOVER PRODUTO
 # =========================================================
 elif opcao_menu == "🚚 Mover Produto":
     st.header("🚚 Movimentação Interna de Produto")
 
-    with st.form("form_mover"):
-        cod_mover = st.text_input("Código do Produto (Interno ou Fabricante) *").strip().upper()
+    cod_mover = st.text_input("Código do Produto (Interno ou Fabricante) *", key="cod_mover_busca").strip().upper()
 
+    id_alvo = None
+    if cod_mover:
+        df_busca = _ler_base_bruta()
+        candidatos = df_busca[(df_busca["CODINTERNO"].str.upper() == cod_mover) | (df_busca["CODFAB"].str.upper() == cod_mover)]
+
+        if candidatos.empty:
+            st.error("Produto não localizado no estoque.")
+        elif len(candidatos) == 1:
+            id_alvo = candidatos.iloc[0]["ID_ENDERECO"]
+            st.info(f"Endereço atual: {_rotulo_endereco(candidatos.iloc[0])}")
+        else:
+            st.warning(f"Esse código está presente em {len(candidatos)} endereços diferentes. Selecione qual deseja mover:")
+            opcoes = {_rotulo_endereco(r): r["ID_ENDERECO"] for _, r in candidatos.iterrows()}
+            rotulo_escolhido = st.selectbox("Endereço a mover:", list(opcoes.keys()), key="sel_mover_endereco")
+            id_alvo = opcoes[rotulo_escolhido]
+
+    with st.form("form_mover"):
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             nova_rua = st.text_input("Nova Rua *").strip().upper()
@@ -420,11 +488,15 @@ elif opcao_menu == "🚚 Mover Produto":
 
         if btn_mover:
             if not cod_mover or not nova_rua or not novo_box or not nova_altura:
-                st.warning("Preencha os campos obrigatórios (*).")
+                st.warning("Preencha os campos obrigatórios (*) e informe um código válido acima.")
+            elif id_alvo is None:
+                st.error("Nenhum endereço válido selecionado para mover.")
             else:
                 df_atual = _ler_base_bruta()
-                idx = df_atual[(df_atual["CODINTERNO"].str.upper() == cod_mover) | (df_atual["CODFAB"].str.upper() == cod_mover)].index
-                if not idx.empty:
+                idx = df_atual[df_atual["ID_ENDERECO"] == id_alvo].index
+                if idx.empty:
+                    st.error("Esse endereço não existe mais na base (pode ter sido alterado por outra pessoa). Refaça a busca.")
+                else:
                     df_atual.loc[idx, "RUA"] = nova_rua
                     df_atual.loc[idx, "BOX"] = novo_box
                     df_atual.loc[idx, "ALTURA"] = nova_altura
@@ -440,8 +512,6 @@ elif opcao_menu == "🚚 Mover Produto":
                     if salvar_dados(df_atual):
                         st.session_state["df_base"] = df_atual
                         st.success("✅ Produto movimentado com sucesso!")
-                else:
-                    st.error("Produto não localizado no estoque.")
 
 # =========================================================
 # TELA 3: CADASTRAR / OCUPAR (NA ORDEM EXATA)
@@ -449,6 +519,8 @@ elif opcao_menu == "🚚 Mover Produto":
 elif opcao_menu == "➕ Cadastrar / Ocupar":
     st.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
+        st.caption("O mesmo Código Interno pode ser cadastrado em vários endereços diferentes. "
+                   "Só não é permitido repetir exatamente o mesmo produto no mesmo endereço (Rua + Box).")
         with st.form("form_cadastrar"):
             # Ordem exata: GARANTIA, CODINTERNO, CODFAB, DESCRICAO, CAIXA, RUA, BOX, ALTURA, PALLET, PLT
             col_c1, col_c2 = st.columns(2)
@@ -472,10 +544,17 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                 else:
                     df_atual = _ler_base_bruta()
 
-                    # Evita cadastrar dois produtos com o mesmo Código Interno
-                    ja_existe = (df_atual["CODINTERNO"].str.upper() == cod_int).any()
-                    if ja_existe:
-                        st.error(f"❌ Já existe um produto cadastrado com o Código Interno '{cod_int}'!")
+                    # Só bloqueia se for EXATAMENTE o mesmo produto no mesmo
+                    # endereço (mesmo Código Interno + mesma Rua + mesmo Box).
+                    # Múltiplos endereços para o mesmo produto são permitidos.
+                    duplicado = (
+                        (df_atual["CODINTERNO"].str.upper() == cod_int)
+                        & (df_atual["RUA"].str.upper() == rua)
+                        & (df_atual["BOX"].str.upper() == box)
+                    ).any()
+
+                    if duplicado:
+                        st.error(f"❌ Já existe o produto '{cod_int}' cadastrado exatamente na Rua {rua}, Box {box}!")
                     else:
                         novo_registro = {
                             "GARANTIA": garantia,
@@ -488,7 +567,8 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                             "ALTURA": altura,
                             "PALLET": pallet,
                             "PLT": plt,
-                            "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
+                            "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "ID_ENDERECO": str(uuid.uuid4()),
                         }
 
                         df_novo_item = pd.DataFrame([novo_registro])[COLUNAS_PADRAO]
@@ -504,22 +584,44 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
 elif opcao_menu == "🧹 Limpar Endereço":
     st.header("🧹 Desocupar / Limpar Endereço")
     if validar_admin():
+        cod_limp = st.text_input("Código Interno ou Fabricante a Desocupar *", key="cod_limp_busca").strip().upper()
+
+        id_alvo_limp = None
+        if cod_limp:
+            df_busca = _ler_base_bruta()
+            candidatos = df_busca[(df_busca["CODINTERNO"].str.upper() == cod_limp) | (df_busca["CODFAB"].str.upper() == cod_limp)]
+
+            if candidatos.empty:
+                st.error("Produto não localizado no estoque.")
+            elif len(candidatos) == 1:
+                id_alvo_limp = candidatos.iloc[0]["ID_ENDERECO"]
+                st.info(f"Endereço a limpar: {_rotulo_endereco(candidatos.iloc[0])}")
+            else:
+                st.warning(f"Esse código está presente em {len(candidatos)} endereços diferentes. Selecione qual deseja limpar:")
+                opcoes_limp = {_rotulo_endereco(r): r["ID_ENDERECO"] for _, r in candidatos.iterrows()}
+                rotulo_escolhido_limp = st.selectbox("Endereço a limpar:", list(opcoes_limp.keys()), key="sel_limpar_endereco")
+                id_alvo_limp = opcoes_limp[rotulo_escolhido_limp]
+
         with st.form("form_limpar"):
-            cod_limp = st.text_input("Código Interno ou Fabricante a Desocupar *").strip().upper()
             btn_limp = st.form_submit_button("Desocupar Endereço", use_container_width=True)
 
             if btn_limp:
-                df_atual = _ler_base_bruta()
-                idx = df_atual[(df_atual["CODINTERNO"].str.upper() == cod_limp) | (df_atual["CODFAB"].str.upper() == cod_limp)].index
-                if not idx.empty:
-                    df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
-                    if "DATA ATUALIZACAO" in df_atual.columns:
-                        df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    if salvar_dados(df_atual):
-                        st.session_state["df_base"] = df_atual
-                        st.success("✅ Endereço desocupado com sucesso!")
+                if not cod_limp:
+                    st.warning("Informe o código do produto acima.")
+                elif id_alvo_limp is None:
+                    st.error("Nenhum endereço válido selecionado para limpar.")
                 else:
-                    st.error("Produto não localizado no estoque.")
+                    df_atual = _ler_base_bruta()
+                    idx = df_atual[df_atual["ID_ENDERECO"] == id_alvo_limp].index
+                    if idx.empty:
+                        st.error("Esse endereço não existe mais na base (pode ter sido alterado por outra pessoa). Refaça a busca.")
+                    else:
+                        df_atual.loc[idx, ["RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA"]] = ""
+                        if "DATA ATUALIZACAO" in df_atual.columns:
+                            df_atual.loc[idx, "DATA ATUALIZACAO"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        if salvar_dados(df_atual):
+                            st.session_state["df_base"] = df_atual
+                            st.success("✅ Endereço desocupado com sucesso!")
 
 # =========================================================
 # TELA 5: IMPORTAÇÃO / ATUALIZAÇÃO DA BASE EM MASSA (ADMIN)
@@ -547,8 +649,11 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                         df_novo[col] = ""
                 df_novo = df_novo[COLUNAS_PADRAO]
 
+                # Gera um ID_ENDERECO único para cada linha importada
+                df_novo, _ = _preencher_ids_faltantes(df_novo)
+
                 st.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
-                st.dataframe(df_novo.head(10), use_container_width=True)
+                st.dataframe(df_novo.drop(columns=["ID_ENDERECO"], errors="ignore").head(10), use_container_width=True)
 
                 st.warning("⚠️ Esta ação SUBSTITUI toda a base de produtos atual pelo conteúdo da planilha importada.")
                 if st.button("🚀 Confirmar e Atualizar Base do WMS", use_container_width=True):
