@@ -1,6 +1,7 @@
 import streamlit as str_lit
 import pandas as pd
 import os
+import json
 from datetime import datetime
 
 # =========================================================
@@ -13,9 +14,10 @@ str_lit.set_page_config(
 )
 
 # =========================================================
-# GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA BLINDADA)
+# GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA JSON)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
+ARQUIVO_USUARIOS = "usuarios.json"
 
 # Ordem oficial e unificada exigida em todo o sistema e importação
 COLUNAS_PADRAO = [
@@ -37,6 +39,18 @@ def carregar_usuarios():
         "operador": {"senha": "op123", "perfil": "OPERADOR"},
         "admin": {"senha": "admin123", "perfil": "ADMIN"}
     }
+    
+    # Tenta carregar do JSON dedicado
+    if os.path.exists(ARQUIVO_USUARIOS):
+        try:
+            with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as f:
+                db = json.load(f)
+                if db:
+                    return db
+        except Exception:
+            pass
+            
+    # Fallback: Se não tem o JSON mas o Excel tem a aba Usuarios antiga, tenta resgatar de lá uma vez
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             xl = pd.ExcelFile(ARQUIVO_EXCEL)
@@ -50,44 +64,19 @@ def carregar_usuarios():
                     perfil = str(row["PERFIL"]).strip().upper()
                     if user:
                         db[user] = {"senha": senha, "perfil": perfil}
-                return db if db else usuarios_padrao
+                if db:
+                    salvar_usuarios(db) # Salva já no formato JSON novo
+                    return db
         except Exception:
             pass
+            
     return usuarios_padrao
 
 def salvar_usuarios(db):
     try:
-        df_base_atual = pd.DataFrame(columns=COLUNAS_PADRAO)
-        if os.path.exists(ARQUIVO_EXCEL):
-            try:
-                xl = pd.ExcelFile(ARQUIVO_EXCEL)
-                if "Base_Dados" in xl.sheet_names:
-                    df_base_atual = pd.read_excel(ARQUIVO_EXCEL, sheet_name="Base_Dados", dtype=str)
-                else:
-                    df_base_atual = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
-            except Exception:
-                pass
-        
-        df_base_atual = df_base_atual.fillna("")
-        for col in COLUNAS_PADRAO:
-            if col not in df_base_atual.columns:
-                df_base_atual[col] = ""
-        df_base_atual = df_base_atual[COLUNAS_PADRAO]
-        
-        lista_user = []
-        for user, info in db.items():
-            lista_user.append({
-                "USUARIO": user,
-                "SENHA": info["senha"],
-                "PERFIL": info["perfil"]
-            })
-        df_user = pd.DataFrame(lista_user)
-        
-        with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
-            df_base_atual.to_excel(writer, sheet_name="Base_Dados", index=False)
-            df_user.to_excel(writer, sheet_name="Usuarios", index=False)
-            
-        str_lit.session_state["usuarios_db"] = carregar_usuarios()
+        with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as f:
+            json.dump(db, f, ensure_ascii=False, indent=4)
+        str_lit.session_state["usuarios_db"] = db
     except Exception as e:
         str_lit.error(f"Erro ao salvar usuários: {e}")
 
@@ -110,7 +99,7 @@ if "q_valid" not in str_lit.session_state:
     str_lit.session_state["q_valid"] = ""
 
 # =========================================================
-# CARREGAMENTO SEGURO DA BASE DE DADOS
+# CARREGAMENTO SEGURO DA BASE DE DADOS (ESTOQUE)
 # =========================================================
 @str_lit.cache_data(ttl=2)
 def carregar_dados():
@@ -137,10 +126,6 @@ def carregar_dados():
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def salvar_dados(df):
-    db_atual = str_lit.session_state.get("usuarios_db", carregar_usuarios())
-    lista_user = [{"USUARIO": k, "SENHA": v["senha"], "PERFIL": v["perfil"]} for k, v in db_atual.items()]
-    df_user = pd.DataFrame(lista_user)
-    
     df = df.fillna("")
     for col in COLUNAS_PADRAO:
         if col not in df.columns:
@@ -149,7 +134,6 @@ def salvar_dados(df):
     
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
-        df_user.to_excel(writer, sheet_name="Usuarios", index=False)
     str_lit.cache_data.clear()
 
 if "df_base" not in str_lit.session_state:
