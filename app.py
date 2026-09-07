@@ -2,7 +2,7 @@ import streamlit as str_lit
 import pandas as pd
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -121,6 +121,12 @@ if "linhas_congeladas" not in str_lit.session_state:
 if "modo_impressao" not in str_lit.session_state:
     str_lit.session_state["modo_impressao"] = False
 
+# Controle de tentativas de login incorretas e bloqueio temporário
+if "tentativas_login" not in str_lit.session_state:
+    str_lit.session_state["tentativas_login"] = 0
+if "tempo_bloqueio" not in str_lit.session_state:
+    str_lit.session_state["tempo_bloqueio"] = None
+
 if "q_busca" not in str_lit.session_state:
     str_lit.session_state["q_busca"] = ""
 if "q_valid" not in str_lit.session_state:
@@ -157,17 +163,16 @@ def salvar_dados(df):
             df[col] = ""
     df = df[COLUNAS_PADRAO]
     
-    # Cria o arquivo Excel usando openpyxl do zero para garantir a formatação visual rica
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Base_Dados"
     
-    # Paleta de cores corporativa (Azul WMS Escuro + Texto Branco)
-    cor_cabecalho_fundo = "1F4E78" # Azul escuro profissional
-    cor_cabecalho_fonte = "FFFFFF" # Branco
-    cor_linha_alternada = "F9FBFD"  # Azul bem clarinho para efeito zebrado
+    ws.views.sheetView[0].showGridLines = True
     
-    # Estilos de fonte e alinhamento
+    cor_cabecalho_fundo = "1F4E78"
+    cor_cabecalho_fonte = "FFFFFF"
+    cor_linha_alternada = "F2F5F9"
+    
     fonte_cabecalho = Font(name="Arial", size=11, bold=True, color=cor_cabecalho_fonte)
     preenchimento_cabecalho = PatternFill(start_color=cor_cabecalho_fundo, end_color=cor_cabecalho_fundo, fill_type="solid")
     
@@ -178,10 +183,10 @@ def salvar_dados(df):
         bottom=Side(style='thin', color='D9D9D9')
     )
     
-    alinhar_centro = Alignment(horizontal="center", vertical="center")
-    alinhar_esquerda = Alignment(horizontal="left", vertical="center")
+    alinhar_centro = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    alinhar_esquerda = Alignment(horizontal="left", vertical="center", wrap_text=True)
     
-    # Escreve o Cabeçalho (Linha 1)
+    ws.row_dimensions[1].height = 28
     for col_num, col_name in enumerate(COLUNAS_PADRAO, 1):
         cell = ws.cell(row=1, column=col_num, value=col_name)
         cell.font = fonte_cabecalho
@@ -189,8 +194,8 @@ def salvar_dados(df):
         cell.alignment = alinhar_centro
         cell.border = borda_fina
         
-    # Escreve as Linhas de Dados e aplica formatação (Efeito Zebrado + Bordas + Alinhamento)
     for row_idx, row_data in enumerate(df.itertuples(index=False), start=2):
+        ws.row_dimensions[row_idx].height = 20
         is_par = (row_idx % 2 == 0)
         fill_atual = PatternFill(start_color=cor_linha_alternada, end_color=cor_linha_alternada, fill_type="solid") if is_par else None
         
@@ -202,21 +207,19 @@ def salvar_dados(df):
             if fill_atual:
                 cell.fill = fill_atual
                 
-            # Centraliza códigos e endereços, deixa descrições alinhadas à esquerda
             nome_coluna = COLUNAS_PADRAO[col_idx - 1]
             if nome_coluna == "DESCRICAO":
                 cell.alignment = alinhar_esquerda
             else:
                 cell.alignment = alinhar_centro
 
-    # Ajusta automaticamente a largura das colunas para o texto não ficar cortado
     for col in ws.columns:
         max_len = 0
         col_letter = openpyxl.utils.get_column_letter(col[0].column)
         for cell in col:
             if cell.value:
                 max_len = max(max_len, len(str(cell.value)))
-        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        ws.column_dimensions[col_letter].width = max(max_len + 5, 14)
         
     wb.save(ARQUIVO_EXCEL)
     str_lit.cache_data.clear()
@@ -227,11 +230,22 @@ if "df_base" not in str_lit.session_state:
 df_base = str_lit.session_state["df_base"]
 
 # =========================================================
-# TELA DE LOGIN
+# TELA DE LOGIN (COM BLOQUEIO DE 1 MINUTO APÓS 3 ERROS)
 # =========================================================
 if not str_lit.session_state["autenticado"]:
     str_lit.title("📦 WMS - Acesso ao Sistema")
     str_lit.subheader("🔒 Identificação do Usuário")
+
+    # Verifica se o usuário está atualmente bloqueado
+    bloqueado_ate = str_lit.session_state.get("tempo_bloqueio", None)
+    if bloqueado_ate and datetime.now() < bloqueado_ate:
+        tempo_restante = int((bloqueado_ate - datetime.now()).total_seconds())
+        str_lit.error(f"❌ Muitas tentativas incorretas. Acesso temporariamente bloqueado. Tente novamente em **{tempo_restante} segundos**.")
+        str_lit.stop()
+    elif bloqueado_ate and datetime.now() >= bloqueado_ate:
+        # Libera o bloqueio após passar o tempo
+        str_lit.session_state["tempo_bloqueio"] = None
+        str_lit.session_state["tentativas_login"] = 0
 
     str_lit.session_state["usuarios_db"] = carregar_usuarios()
     usuarios_disponiveis = list(str_lit.session_state["usuarios_db"].keys())
@@ -239,16 +253,32 @@ if not str_lit.session_state["autenticado"]:
     usuario_input = str_lit.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
     senha_input = str_lit.text_input("Senha de Acesso", type="password")
 
+    tentativas_restantes = 3 - str_lit.session_state["tentativas_login"]
+    str_lit.info(f"⚠️ Tentativas restantes antes do bloqueio temporário: **{tentativas_restantes}**")
+
     if str_lit.button("🔑 Entrar no WMS", use_container_width=True):
         db = str_lit.session_state["usuarios_db"]
         user_info = db.get(usuario_input.lower())
+        
         if user_info and user_info["senha"] == senha_input:
+            # Login bem-sucedido: reseta as tentativas e entra
             str_lit.session_state["autenticado"] = True
             str_lit.session_state["usuario_logado"] = usuario_input.capitalize()
             str_lit.session_state["perfil"] = user_info["perfil"]
+            str_lit.session_state["tentativas_login"] = 0
+            str_lit.session_state["tempo_bloqueio"] = None
             str_lit.rerun()
         else:
-            str_lit.error("❌ Senha incorreta!")
+            # Incrementa o erro
+            str_lit.session_state["tentativas_login"] += 1
+            
+            if str_lit.session_state["tentativas_login"] >= 3:
+                # Bloqueia por 1 minuto
+                str_lit.session_state["tempo_bloqueio"] = datetime.now() + timedelta(minutes=1)
+                str_lit.error("❌ Senha incorreta! Limite de 3 tentativas atingido. Acesso bloqueado por 1 minuto.")
+                str_lit.rerun()
+            else:
+                str_lit.error(f"❌ Senha incorreta! Tentativa {str_lit.session_state['tentativas_login']} de 3.")
     str_lit.stop()
 
 # =========================================================
@@ -295,7 +325,6 @@ def validar_admin():
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     
-    # Se o modo de pré-visualização de impressão estiver ativo
     if str_lit.session_state.get("modo_impressao", False):
         str_lit.markdown("## 🖨️ Pré-visualização de Impressão - WMS")
         str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
@@ -306,7 +335,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             
         str_lit.markdown("---")
         
-        # Recupera dados filtrados atuais
         q_busca_ativo = str_lit.session_state.get("q_busca", "").strip().upper()
         df_res_print = str_lit.session_state.get("df_base", carregar_dados()).copy()
         df_res_print.columns = [str(c).strip().upper() for c in df_res_print.columns]
@@ -324,7 +352,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         str_lit.table(df_res_print)
         str_lit.stop()
 
-    # Tela normal de Pesquisa
     str_lit.header("🔍 Pesquisa e Validação")
 
     col_l1, col_l2 = str_lit.columns([4, 1])
