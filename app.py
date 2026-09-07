@@ -16,7 +16,21 @@ str_lit.set_page_config(
 # GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA BLINDADA)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
-COLUNAS_PADRAO = ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA", "DATA ATUALIZACAO"]
+
+# Ordem oficial exigida pelo seu fluxo e importação em massa
+COLUNAS_PADRAO = [
+    "GARANTIA", 
+    "CODINTERNO", 
+    "CODFAB", 
+    "DESCRICAO", 
+    "CAIXA", 
+    "RUA", 
+    "BOX", 
+    "ALTURA", 
+    "PALLET", 
+    "PLT", 
+    "DATA ATUALIZACAO"
+]
 
 def carregar_usuarios():
     usuarios_padrao = {
@@ -345,27 +359,26 @@ elif opcao_menu == "🚚 Mover Produto":
                     str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
-# TELA 3: CADASTRAR / OCUPAR (REORGANIZADO NA ORDEM EXATA DA PESQUISA/BASE)
+# TELA 3: CADASTRAR / OCUPAR (NA ORDEM EXATA INFORMADA)
 # =========================================================
 elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
         with str_lit.form("form_cadastrar"):
-            # Ordem rigorosa correspondente à base de dados:
-            # ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA"]
+            # Ordem exata: GARANTIA, CODINTERNO, CODFAB, DESCRICAO, CAIXA, RUA, BOX, ALTURA, PALLET, PLT
             col_c1, col_c2 = str_lit.columns(2)
             with col_c1:
-                cod_int = str_lit.text_input("1. CODINTERNO (Cód. Interno) *").strip().upper()
-                cod_fab = str_lit.text_input("2. CODFAB (Cód. Fabricante) *").strip().upper()
-                desc = str_lit.text_input("3. DESCRICAO (Descrição Completa) *").strip().upper()
-                rua = str_lit.text_input("4. RUA *").strip().upper()
-                box = str_lit.text_input("5. BOX *").strip().upper()
+                garantia = str_lit.text_input("1. GARANTIA").strip().upper()
+                cod_int = str_lit.text_input("2. CODINTERNO (Cód. Interno) *").strip().upper()
+                cod_fab = str_lit.text_input("3. CODFAB (Cód. Fabricante) *").strip().upper()
+                desc = str_lit.text_input("4. DESCRICAO (Descrição Completa) *").strip().upper()
+                caixa = str_lit.text_input("5. CAIXA").strip().upper()
             with col_c2:
-                altura = str_lit.text_input("6. ALTURA *").strip().upper()
-                pallet = str_lit.text_input("7. PALLET").strip().upper()
-                plt = str_lit.text_input("8. PLT").strip().upper()
-                caixa = str_lit.text_input("9. CAIXA").strip().upper()
-                garantia = str_lit.text_input("10. GARANTIA").strip().upper()
+                rua = str_lit.text_input("6. RUA *").strip().upper()
+                box = str_lit.text_input("7. BOX *").strip().upper()
+                altura = str_lit.text_input("8. ALTURA *").strip().upper()
+                pallet = str_lit.text_input("9. PALLET").strip().upper()
+                plt = str_lit.text_input("10. PLT").strip().upper()
             
             btn_cad = str_lit.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
             if btn_cad:
@@ -375,16 +388,16 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     df_atual = str_lit.session_state["df_base"]
                     
                     novo_registro = {
+                        "GARANTIA": garantia,
                         "CODINTERNO": cod_int,
                         "CODFAB": cod_fab,
                         "DESCRICAO": desc,
+                        "CAIXA": caixa,
                         "RUA": rua,
                         "BOX": box,
                         "ALTURA": altura,
                         "PALLET": pallet,
                         "PLT": plt,
-                        "CAIXA": caixa,
-                        "GARANTIA": garantia,
                         "DATA ATUALIZACAO": datetime.now().strftime("%Y-%m-%d %H:%M")
                     }
                     
