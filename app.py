@@ -819,7 +819,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     from google import genai
                     
                     # Pega a chave dos segredos ou substitua pela sua chave nova com AQ.
-                    api_key_valor = str_lit.secrets.get("GEMINI_API_KEY", "SUA_CHAVE_AQUI")
+                    api_key_valor = str_lit.secrets.get("GEMINI_API_KEY", "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg")
                     
                     client = genai.Client(api_key=api_key_valor)
                     
