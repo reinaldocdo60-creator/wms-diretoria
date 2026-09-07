@@ -822,18 +822,15 @@ elif opcao_menu == "🤖 Assistente IA":
                     # Cole aqui a sua chave completa que começa com AQ.
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Endpoint oficial do Gemini via REST API (v1beta)
-                    url_api = "https://googleapis.com"
+                    # CORREÇÃO DA URL: A API do Gemini exige o parâmetro ?key= na própria URL para requisições REST
+                    url_api = f"https://googleapis.com{api_key_valor}"
                     
-                    # Cabeçalhos explícitos que garantem o funcionamento da chave AQ. (Corrigido!)
                     headers = {
-                        "x-goog-api-key": api_key_valor,
                         "Content-Type": "application/json"
                     }
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Monta o corpo da requisição exatamente no padrão esperado pelo Google
                     payload = {
                         "contents": [{
                             "parts": [{
@@ -842,12 +839,11 @@ elif opcao_menu == "🤖 Assistente IA":
                         }]
                     }
                     
-                    # Realiza a chamada HTTP direta sem depender de SDKs instáveis
                     response = requests.post(url_api, headers=headers, json=payload)
                     
                     if response.status_code == 200:
                         dados_resposta = response.json()
-                        # Extrai o texto da estrutura JSON do Gemini
+                        # CORREÇÃO DO JSON: Acessando corretamente os índices da lista retornada pela API
                         resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
                         
                         str_lit.markdown(resposta_ia)
@@ -857,6 +853,7 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
