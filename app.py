@@ -147,7 +147,26 @@ def carregar_dados():
                 df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             
             df = df.fillna("")
+            
+            # Limpa espaços e converte para maiúsculo
             df.columns = [str(c).strip().upper() for c in df.columns]
+            
+            # Mapeamento de sinônimos para evitar colunas em branco por diferença de digitação
+            mapa_colunas = {
+                "PALET": "PALLET",
+                "PALETE": "PALLET",
+                "COD.INTERNO": "CODINTERNO",
+                "COD_INTERNO": "CODINTERNO",
+                "CÓDIGO INTERNO": "CODINTERNO",
+                "COD.FAB": "CODFAB",
+                "COD_FAB": "CODFAB",
+                "FABRICANTE": "CODFAB",
+                "DESC": "DESCRICAO",
+                "DESCRIÇÃO": "DESCRICAO",
+                "ULTIMA ATUALIZACAO": "DATA ATUALIZACAO",
+                "DATA_ATUALIZACAO": "DATA ATUALIZACAO"
+            }
+            df = df.rename(columns=mapa_colunas)
             
             for col in COLUNAS_PADRAO:
                 if col not in df.columns:
@@ -602,6 +621,22 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 
                 df_novo = df_novo.fillna("")
                 df_novo.columns = [str(c).strip().upper() for c in df_novo.columns]
+                
+                mapa_colunas = {
+                    "PALET": "PALLET",
+                    "PALETE": "PALLET",
+                    "COD.INTERNO": "CODINTERNO",
+                    "COD_INTERNO": "CODINTERNO",
+                    "CÓDIGO INTERNO": "CODINTERNO",
+                    "COD.FAB": "CODFAB",
+                    "COD_FAB": "CODFAB",
+                    "FABRICANTE": "CODFAB",
+                    "DESC": "DESCRICAO",
+                    "DESCRIÇÃO": "DESCRICAO",
+                    "ULTIMA ATUALIZACAO": "DATA ATUALIZACAO",
+                    "DATA_ATUALIZACAO": "DATA ATUALIZACAO"
+                }
+                df_novo = df_novo.rename(columns=mapa_colunas)
                 
                 for col in COLUNAS_PADRAO:
                     if col not in df_novo.columns:
