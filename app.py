@@ -14,12 +14,39 @@ str_lit.set_page_config(
 )
 
 # =========================================================
+# ESTILO CSS GLOBAL + REGRAS DE IMPRESSÃO (MEDIA PRINT) + JS PRINT
+# =========================================================
+str_lit.markdown("""
+    <style>
+    @media print {
+        /* Esconde a barra lateral (sidebar) */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        /* Esconde o cabeçalho superior do Streamlit */
+        header {
+            display: none !important;
+        }
+        /* Esconde botões, caixas de texto e inputs de filtro na hora da impressão */
+        .stTextInput, .stButton, .stTabs, div[data-testid="column"] {
+            display: none !important;
+        }
+        /* Garante que o corpo principal ocupe a página toda sem margens indesejadas */
+        .main {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# =========================================================
 # GERENCIAMENTO DE USUÁRIOS E SENHAS (PERSISTÊNCIA JSON)
 # =========================================================
 ARQUIVO_EXCEL = "Base_Estoque.xlsx"
 ARQUIVO_USUARIOS = "usuarios.json"
 
-# Ordem oficial e unificada exigida em todo o sistema e importação
 COLUNAS_PADRAO = [
     "GARANTIA", 
     "CODINTERNO", 
@@ -81,7 +108,6 @@ def salvar_usuarios(db):
 if "usuarios_db" not in str_lit.session_state:
     str_lit.session_state["usuarios_db"] = carregar_usuarios()
 
-# Inicialização da Sessão
 if "autenticado" not in str_lit.session_state:
     str_lit.session_state["autenticado"] = False
 if "usuario_logado" not in str_lit.session_state:
@@ -96,9 +122,6 @@ if "q_busca" not in str_lit.session_state:
 if "q_valid" not in str_lit.session_state:
     str_lit.session_state["q_valid"] = ""
 
-# =========================================================
-# CARREGAMENTO SEGURO DA BASE DE DADOS (ESTOQUE)
-# =========================================================
 @str_lit.cache_data(ttl=2)
 def carregar_dados():
     if os.path.exists(ARQUIVO_EXCEL):
@@ -246,9 +269,22 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     tab1, tab2 = str_lit.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(str_lit.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
+        col_cab, col_btn_imp = str_lit.columns([3, 1])
+        with col_cab:
+            str_lit.markdown("### Resultado da Pesquisa de Estoque")
+        with col_btn_imp:
+            # Botão de Ação Direta para Visualização/Impressão
+            if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
+                str_lit.markdown("""
+                    <script>
+                        window.print();
+                    </script>
+                """, unsafe_allow_html=True)
+
         str_lit.table(df_res)
 
     with tab2:
+        str_lit.markdown("### Linhas Congeladas")
         str_lit.table(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()))
 
     if q_valid:
