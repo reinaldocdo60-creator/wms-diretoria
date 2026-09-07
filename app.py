@@ -819,7 +819,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     import google.generativeai as genai
                     
                     # Cole sua chave exata aqui dentro das aspas:
-                    api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
+                    api_key_valor = "AQ.Ab8RN6Jvc6Z6dpzipcayUOugxR-dflGB0vQjovbFUMOVRsnnCw"
                     
                     genai.configure(api_key=api_key_valor)
                     
