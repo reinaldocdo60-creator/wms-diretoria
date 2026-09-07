@@ -794,7 +794,6 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     salvar_usuarios(db_users)
                     str_lit.success(f"✅ Usuário '{novo_user}' cadastrado com sucesso!")
                     str_lit.rerun()
-
 # =========================================================
 # TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
 # =========================================================
@@ -802,39 +801,37 @@ elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
-    # Histórico de mensagens do chat na sessão
     if "historico_chat" not in str_lit.session_state:
         str_lit.session_state["historico_chat"] = []
 
-    # Exibe as mensagens anteriores
     for mensagem in str_lit.session_state["historico_chat"]:
         with str_lit.chat_message(mensagem["role"]):
             str_lit.markdown(mensagem["content"])
 
-    # Entrada de texto do usuário
     if duvida_usuario := str_lit.chat_input("Digite sua dúvida sobre o WMS ou operações de armazém..."):
         str_lit.session_state["historico_chat"].append({"role": "user", "content": duvida_usuario})
         with str_lit.chat_message("user"):
             str_lit.markdown(duvida_usuario)
 
-        # Processa a resposta com o Gemini
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    instrucao_sistema = """
-                    Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS).
-                    Responda dúvidas sobre as rotinas, processos, controle de estoque e regras de negócio do sistema de forma clara, prestativa e em português brasileiro.
-                    """
-
-                    model = genai.GenerativeModel(
-                        model_name="gemini-1.5-flash",
-                        system_instruction=instrucao_sistema
+                    from google import genai
+                    
+                    # Pega a chave dos segredos ou substitua pela sua chave nova com AQ.
+                    api_key_valor = str_lit.secrets.get("GEMINI_API_KEY", "SUA_CHAVE_AQUI")
+                    
+                    client = genai.Client(api_key=api_key_valor)
+                    
+                    prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
+                    
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
                     )
                     
-                    response = model.generate_content(duvida_usuario)
                     resposta_ia = response.text
                     str_lit.markdown(resposta_ia)
-                    
                     str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
 
                 except Exception as erro:
