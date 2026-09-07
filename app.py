@@ -157,13 +157,10 @@ def salvar_dados(df):
             df[col] = ""
     df = df[COLUNAS_PADRAO]
     
-    # Salva os dados usando openpyxl para aplicar formatação visual rica
-    with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="Base_Dados", index=False)
-        
-    # Abre o arquivo recém-salvo para aplicar o estilo visual (Cores, Bordas, Fontes)
-    wb = openpyxl.load_workbook(ARQUIVO_EXCEL)
-    ws = wb["Base_Dados"]
+    # Cria o arquivo Excel usando openpyxl do zero para garantir a formatação visual rica
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Base_Dados"
     
     # Paleta de cores corporativa (Azul WMS Escuro + Texto Branco)
     cor_cabecalho_fundo = "1F4E78" # Azul escuro profissional
@@ -184,21 +181,21 @@ def salvar_dados(df):
     alinhar_centro = Alignment(horizontal="center", vertical="center")
     alinhar_esquerda = Alignment(horizontal="left", vertical="center")
     
-    # Formata o Cabeçalho (Linha 1)
-    for col_num in range(1, len(COLUNAS_PADRAO) + 1):
-        cell = ws.cell(row=1, column=col_num)
+    # Escreve o Cabeçalho (Linha 1)
+    for col_num, col_name in enumerate(COLUNAS_PADRAO, 1):
+        cell = ws.cell(row=1, column=col_num, value=col_name)
         cell.font = fonte_cabecalho
         cell.fill = preenchimento_cabecalho
         cell.alignment = alinhar_centro
         cell.border = borda_fina
         
-    # Formata as Linhas de Dados (Efeito Zebrado + Bordas + Alinhamento)
-    for row_num in range(2, len(df) + 2):
-        is_par = (row_num % 2 == 0)
+    # Escreve as Linhas de Dados e aplica formatação (Efeito Zebrado + Bordas + Alinhamento)
+    for row_idx, row_data in enumerate(df.itertuples(index=False), start=2):
+        is_par = (row_idx % 2 == 0)
         fill_atual = PatternFill(start_color=cor_linha_alternada, end_color=cor_linha_alternada, fill_type="solid") if is_par else None
         
-        for col_num in range(1, len(COLUNAS_PADRAO) + 1):
-            cell = ws.cell(row=row_num, column=col_num)
+        for col_idx, valor in enumerate(row_data, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=str(valor))
             cell.font = Font(name="Arial", size=10)
             cell.border = borda_fina
             
@@ -206,8 +203,8 @@ def salvar_dados(df):
                 cell.fill = fill_atual
                 
             # Centraliza códigos e endereços, deixa descrições alinhadas à esquerda
-            nome_coluna = COLUNAS_PADRAO[col_num - 1]
-            if nome_coluna in ["DESCRICAO"]:
+            nome_coluna = COLUNAS_PADRAO[col_idx - 1]
+            if nome_coluna == "DESCRICAO":
                 cell.alignment = alinhar_esquerda
             else:
                 cell.alignment = alinhar_centro
@@ -325,7 +322,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
             
         str_lit.write(f"**Filtro aplicado:** {q_busca_ativo if q_busca_ativo else 'Nenhum'} | **Total de registros:** {len(df_res_print)}")
         str_lit.table(df_res_print)
-        str_lit.stop() # Interrompe a execução para mostrar apenas o preview limpo
+        str_lit.stop()
 
     # Tela normal de Pesquisa
     str_lit.header("🔍 Pesquisa e Validação")
@@ -372,7 +369,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         with col_cab:
             str_lit.markdown("### Resultado da Pesquisa de Estoque")
         with col_btn_imp:
-            # Botão que ativa o modo de pré-visualização limpa na tela
             if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
                 str_lit.session_state["modo_impressao"] = True
                 str_lit.rerun()
