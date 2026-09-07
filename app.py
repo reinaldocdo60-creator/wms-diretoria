@@ -825,10 +825,10 @@ elif opcao_menu == "🤖 Assistente IA":
                     # Endpoint oficial do Gemini via REST API (v1beta)
                     url_api = "https://googleapis.com"
                     
-                    # Cabeçalhos explícitos que garantem o funcionamento da chave AQ.
+                    # Cabeçalhos explícitos que garantem o funcionamento da chave AQ. (Corrigido!)
                     headers = {
                         "x-goog-api-key": api_key_valor,
-                        "Content-Type": application/json"
+                        "Content-Type": "application/json"
                     }
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
@@ -857,6 +857,7 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
