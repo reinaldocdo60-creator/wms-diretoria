@@ -823,8 +823,8 @@ elif opcao_menu == "🤖 Assistente IA":
                     
                     genai.configure(api_key=api_key_valor)
                     
-                    # Usando o modelo padrão compatível
-                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    # Modelo atualizado e 100% compatível com a v1beta
+                    model = genai.GenerativeModel("gemini-2.0-flash")
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
