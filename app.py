@@ -819,7 +819,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     from google import genai
                     
                     # Cole sua chave exata aqui dentro das aspas:
-                    api_key_valor = "SUA_CHAVE_COLE_AQUI"
+                    api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
                     client = genai.Client(api_key=api_key_valor)
                     
