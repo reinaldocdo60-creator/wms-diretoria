@@ -7,14 +7,17 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # =====================================================
-# CONFIGURAÇÃO DO GOOGLE GEMINI E AMBIENTE
+# CONFIGURAÇÃO DO GOOGLE GEMINI (Biblioteca Clássica)
 # =====================================================
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Carrega as variáveis de ambiente locais (se houver arquivo .env)
 load_dotenv()
+
+# Configura a API key diretamente com a chave informada
+CHAVE_API_WMS = "AQ.Ab8RN6I1bXpNqsD3J7zN046MfeH4ld3DmrwraC1srEuEAnczaA"
+genai.configure(api_key=CHAVE_API_WMS)
 
 # =====================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -37,12 +40,9 @@ str_lit.markdown("""
     
     /* Regras estritas para impressão e exportação para PDF limpa */
     @media print {
-        /* Oculta elementos desnecessários da interface do Streamlit na impressão */
         header, footer, nav, .stSidebar, [data-testid="stSidebar"], .stButton, .stDownloadButton {
             display: none !important;
         }
-        
-        /* Ajusta o layout principal para ocupar a página inteira */
         body, .main, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             background-color: white !important;
             color: black !important;
@@ -50,8 +50,6 @@ str_lit.markdown("""
             margin: 0 !important;
             padding: 0 !important;
         }
-        
-        /* Garante que tabelas e textos fiquem legíveis em preto e branco */
         table {
             border-collapse: collapse !important;
             width: 100% !important;
@@ -77,7 +75,6 @@ if opcao_menu == "Estoque":
     str_lit.title("📦 WMS - Gestão de Estoque")
     str_lit.markdown("Gerencie os produtos, entradas e saídas do armazém.")
     
-    # Exemplo de conteúdo da tela de estoque
     try:
         df_estoque = pd.read_excel("Base_Estoque.xlsx")
         str_lit.dataframe(df_estoque, use_container_width=True)
@@ -90,7 +87,6 @@ if opcao_menu == "Estoque":
 elif opcao_menu == "Relatórios":
     str_lit.title("📊 Relatórios e Indicadores")
     str_lit.markdown("Visualize as métricas de movimentação e inventário.")
-    
     str_lit.write("Painel de relatórios em andamento...")
 
 # =====================================================
@@ -99,19 +95,6 @@ elif opcao_menu == "Relatórios":
 elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
-
-    # Inicializa o cliente do Gemini de forma robusta
-    try:
-        # Tenta inicializar usando a chave informada diretamente ou via ambiente
-        client = genai.Client(api_key="AQ.Ab8RN6I1bXpNqsD3J7zN046MfeH4ld3DmrwraC1srEuEAnczaA")
-    except Exception as e:
-        try:
-            client = genai.Client()
-        except Exception as e2:
-            client = None
-
-    if not client:
-        str_lit.error("Erro ao inicializar a IA. Verifique se a chave de API está correta.")
 
     # Histórico de mensagens do chat na sessão do Streamlit
     if "historico_chat" not in str_lit.session_state:
@@ -129,32 +112,27 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("user"):
             str_lit.markdown(duvida_usuario)
 
-        # Processa a resposta com o Gemini
-        if client:
-            with str_lit.chat_message("assistant"):
-                with str_lit.spinner("Consultando as regras do WMS..."):
-                    try:
-                        instrucao_sistema = """
-                        Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS).
-                        Responda dúvidas sobre as rotinas, processos, controle de estoque e regras de negócio do sistema de forma clara, prestativa e em português brasileiro.
-                        """
+        # Processa a resposta com o Gemini clássico
+        with str_lit.chat_message("assistant"):
+            with str_lit.spinner("Consultando as regras do WMS..."):
+                try:
+                    instrucao_sistema = """
+                    Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS).
+                    Responda dúvidas sobre as rotinas, processos, controle de estoque e regras de negócio do sistema de forma clara, prestativa e em português brasileiro.
+                    """
 
-                        response = client.models.generate_content(
-                            model="gemini-2.5-flash", 
-                            contents=duvida_usuario,
-                            config=types.GenerateContentConfig(
-                                system_instruction=instrucao_sistema,
-                                temperature=0.3,
-                            ),
-                        )
-                        
-                        resposta_ia = response.text
-                        str_lit.markdown(resposta_ia)
-                        
-                        # Adiciona a resposta da IA ao histórico
-                        str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction=instrucao_sistema
+                    )
+                    
+                    response = model.generate_content(duvida_usuario)
+                    
+                    resposta_ia = response.text
+                    str_lit.markdown(resposta_ia)
+                    
+                    # Adiciona a resposta da IA ao histórico
+                    str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
 
-                    except Exception as erro:
-                        str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
-        else:
-            str_lit.warning("A IA está desativada temporariamente porque a chave da API não foi encontrada.")
+                except Exception as erro:
+                    str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
