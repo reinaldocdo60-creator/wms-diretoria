@@ -151,7 +151,7 @@ def carregar_dados():
             # Limpa espaços e converte para maiúsculo
             df.columns = [str(c).strip().upper() for c in df.columns]
             
-            # Mapeamento de sinônimos para evitar colunas em branco por diferença de digitação
+            # Mapeamento de sinônimos para evitar colunas em branco
             mapa_colunas = {
                 "PALET": "PALLET",
                 "PALETE": "PALLET",
@@ -253,7 +253,7 @@ if "df_base" not in str_lit.session_state:
 df_base = str_lit.session_state["df_base"]
 
 # =========================================================
-# TELA DE LOGIN (COM BLOQUEIO E CAMPOS PROPORCIONAIS)
+# TELA DE LOGIN
 # =========================================================
 if not str_lit.session_state["autenticado"]:
     _, col_centro, _ = str_lit.columns([1, 1.2, 1])
@@ -348,10 +348,21 @@ def validar_admin():
     return True
 
 # =========================================================
-# TELA 1: PESQUISA E VALIDAÇÃO
+# TELA 1: PESQUISA E VALIDAÇÃO (COM FILTRO DE GARANTIA)
 # =========================================================
 if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     
+    df_res = str_lit.session_state.get("df_base", carregar_dados()).copy()
+    df_res.columns = [str(c).strip().upper() for c in df_res.columns]
+
+    if "GARANTIA" not in df_res.columns:
+        df_res["GARANTIA"] = ""
+
+    # Extrai as garantias únicas presentes na base para o seletor
+    garantias_disponiveis = ["TODAS"]
+    unicas = sorted([str(x).strip().upper() for x in df_res["GARANTIA"].unique() if str(x).strip() != ""])
+    garantias_disponiveis.extend(unicas)
+
     if str_lit.session_state.get("modo_impressao", False):
         str_lit.markdown("## 🖨️ Pré-visualização de Impressão - WMS")
         str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
@@ -363,8 +374,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         str_lit.markdown("---")
         
         q_busca_ativo = str_lit.session_state.get("q_busca", "").strip().upper()
-        df_res_print = str_lit.session_state.get("df_base", carregar_dados()).copy()
-        df_res_print.columns = [str(c).strip().upper() for c in df_res_print.columns]
+        df_res_print = df_res.copy()
         
         if q_busca_ativo and not df_res_print.empty:
             mask = pd.Series(False, index=df_res_print.index)
@@ -383,17 +393,28 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
 
     col_l1, col_l2 = str_lit.columns([4, 1])
     with col_l2:
+        str_lit.write("")
+        str_lit.write("")
         if str_lit.button("🧹 Limpar Busca", use_container_width=True):
             str_lit.session_state["q_busca"] = ""
             str_lit.session_state["q_valid"] = ""
             str_lit.rerun()
 
+    # Seletor de Garantia em destaque logo acima da busca
+    garantia_selecionada = str_lit.selectbox(
+        "📌 SELECIONE A GARANTIA (Filtro Anti-Duplicidade):", 
+        garantias_disponiveis,
+        key="filtro_garantia_selectbox"
+    )
+
     q_busca = str_lit.text_input("1️⃣ PESQUISA (Cód., Descrição, Endereço):", key="q_busca").strip().upper()
     q_valid = str_lit.text_input("2️⃣ VALIDAÇÃO (Bipe o Cód. Fabricante ou Interno da peça separada):", key="q_valid").strip().upper()
 
-    df_res = str_lit.session_state.get("df_base", carregar_dados()).copy()
-    df_res.columns = [str(c).strip().upper() for c in df_res.columns]
+    # Aplicação do Filtro de Garantia primeiro
+    if garantia_selecionada != "TODAS":
+        df_res = df_res[df_res["GARANTIA"].astype(str).str.upper() == garantia_selecionada]
 
+    # Aplicação do Filtro de Texto em seguida
     if q_busca and not df_res.empty:
         try:
             mask = pd.Series(False, index=df_res.index)
@@ -801,6 +822,7 @@ elif opcao_menu == "📖 Manual de Instruções":
         str_lit.markdown("### 📖 Manual de Instruções e Uso do WMS")
         str_lit.markdown("""
         ### 1. 🔍 Pesquisa e Validação (Geral)
+        * **Filtro de Garantia:** Selecione a garantia desejada no menu suspenso para filtrar estritamente o escopo e evitar duplicidades caso existam códigos idênticos com garantias diferentes.
         * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
         * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
         * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
@@ -843,6 +865,7 @@ elif opcao_menu == "📖 Manual de Instruções":
     
     str_lit.markdown("""
     ### 1. 🔍 Pesquisa e Validação (Geral)
+    * **Filtro de Garantia:** Selecione a garantia desejada no menu suspenso para filtrar estritamente o escopo e evitar duplicidades caso existam códigos idênticos com garantias diferentes.
     * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
     * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
     * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
