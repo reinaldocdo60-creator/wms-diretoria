@@ -100,17 +100,18 @@ elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
-    # Inicializa o cliente do Gemini capturando a chave de segurança do ambiente
+    # Inicializa o cliente do Gemini de forma robusta
     try:
-        chave_api = os.environ.get("GEMINI_API_KEY")
-        if not chave_api:
-            # Caso queira testar informando a chave diretamente, substitua o texto abaixo entre aspas
-            chave_api = "SUA_CHAVE_AQUI" 
-            
-        client = genai.Client(api_key=chave_api)
+        # Tenta inicializar usando a chave informada diretamente ou via ambiente
+        client = genai.Client(api_key="AQ.Ab8RN6I1bXpNqsD3J7zN046MfeH4ld3DmrwraC1srEuEAnczaA")
     except Exception as e:
-        str_lit.error(f"Erro ao inicializar a IA. Verifique se a chave GEMINI_API_KEY está configurada. Detalhe: {e}")
-        client = None
+        try:
+            client = genai.Client()
+        except Exception as e2:
+            client = None
+
+    if not client:
+        str_lit.error("Erro ao inicializar a IA. Verifique se a chave de API está correta.")
 
     # Histórico de mensagens do chat na sessão do Streamlit
     if "historico_chat" not in str_lit.session_state:
@@ -139,7 +140,7 @@ elif opcao_menu == "🤖 Assistente IA":
                         """
 
                         response = client.models.generate_content(
-                            model="gemini-3-flash-preview", 
+                            model="gemini-2.5-flash", 
                             contents=duvida_usuario,
                             config=types.GenerateContentConfig(
                                 system_instruction=instrucao_sistema,
