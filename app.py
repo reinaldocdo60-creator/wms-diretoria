@@ -230,60 +230,61 @@ if "df_base" not in str_lit.session_state:
 df_base = str_lit.session_state["df_base"]
 
 # =========================================================
-# TELA DE LOGIN (COM BLOQUEIO DE 1 MINUTO APÓS 3 ERROS)
+# TELA DE LOGIN (COM BLOQUEIO E CAMPOS PROPORCIONAIS)
 # =========================================================
 if not str_lit.session_state["autenticado"]:
-    str_lit.title("📦 WMS - Acesso ao Sistema")
-    str_lit.subheader("🔒 Identificação do Usuário")
-
-    # Verifica se o usuário está atualmente bloqueado
-    bloqueado_ate = str_lit.session_state.get("tempo_bloqueio", None)
+    # Criamos colunas para centralizar e limitar a largura do login
+    _, col_centro, _ = str_lit.columns([1, 1.2, 1])
     
-    if bloqueado_ate and datetime.now() < bloqueado_ate:
-        str_lit.error("❌ Muitas tentativas incorretas. Acesso temporariamente bloqueado por segurança. Aguarde 1 minuto e tente novamente.")
+    with col_centro:
+        str_lit.markdown("<br>", unsafe_allow_html=True) # Espaçamento superior
+        str_lit.title("📦 WMS - Acesso")
+        str_lit.subheader("🔒 Identificação")
+
+        # Verifica se o usuário está atualmente bloqueado
+        bloqueado_ate = str_lit.session_state.get("tempo_bloqueio", None)
         
-        if str_lit.button("🔄 Verificar se o tempo acabou", use_container_width=True):
-            str_lit.rerun()
+        if bloqueado_ate and datetime.now() < bloqueado_ate:
+            str_lit.error("❌ Muitas tentativas incorretas. Acesso bloqueado por 1 minuto.")
             
-        str_lit.stop()
-    elif bloqueado_ate and datetime.now() >= bloqueado_ate:
-        # Libera o bloqueio após passar o tempo
-        str_lit.session_state["tempo_bloqueio"] = None
-        str_lit.session_state["tentativas_login"] = 0
-
-    str_lit.session_state["usuarios_db"] = carregar_usuarios()
-    usuarios_disponiveis = list(str_lit.session_state["usuarios_db"].keys())
-    
-    usuario_input = str_lit.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
-    senha_input = str_lit.text_input("Senha de Acesso", type="password")
-
-    tentativas_restantes = 3 - str_lit.session_state["tentativas_login"]
-    str_lit.info(f"⚠️ Tentativas restantes antes do bloqueio temporário: **{tentativas_restantes}**")
-
-    if str_lit.button("🔑 Entrar no WMS", use_container_width=True):
-        db = str_lit.session_state["usuarios_db"]
-        user_info = db.get(usuario_input.lower())
-        
-        if user_info and user_info["senha"] == senha_input:
-            # Login bem-sucedido: reseta as tentativas e entra
-            str_lit.session_state["autenticado"] = True
-            str_lit.session_state["usuario_logado"] = usuario_input.capitalize()
-            str_lit.session_state["perfil"] = user_info["perfil"]
-            str_lit.session_state["tentativas_login"] = 0
+            if str_lit.button("🔄 Verificar se o tempo acabou", use_container_width=True):
+                str_lit.rerun()
+                
+            str_lit.stop()
+        elif bloqueado_ate and datetime.now() >= bloqueado_ate:
             str_lit.session_state["tempo_bloqueio"] = None
-            str_lit.rerun()
-        else:
-            # Incrementa o erro
-            str_lit.session_state["tentativas_login"] += 1
+            str_lit.session_state["tentativas_login"] = 0
+
+        str_lit.session_state["usuarios_db"] = carregar_usuarios()
+        usuarios_disponiveis = list(str_lit.session_state["usuarios_db"].keys())
+        
+        usuario_input = str_lit.selectbox("Selecione o Perfil / Usuário", usuarios_disponiveis)
+        senha_input = str_lit.text_input("Senha de Acesso", type="password")
+
+        tentativas_restantes = 3 - str_lit.session_state["tentativas_login"]
+        str_lit.info(f"⚠️ Tentativas restantes: **{tentativas_restantes}**")
+
+        if str_lit.button("🔑 Entrar no WMS", use_container_width=True):
+            db = str_lit.session_state["usuarios_db"]
+            user_info = db.get(usuario_input.lower())
             
-            if str_lit.session_state["tentativas_login"] >= 3:
-                # Bloqueia por 1 minuto a partir de agora
-                str_lit.session_state["tempo_bloqueio"] = datetime.now() + timedelta(minutes=1)
-                str_lit.error("❌ Senha incorreta! Limite de 3 tentativas atingido. Acesso bloqueado por 1 minuto.")
+            if user_info and user_info["senha"] == senha_input:
+                str_lit.session_state["autenticado"] = True
+                str_lit.session_state["usuario_logado"] = usuario_input.capitalize()
+                str_lit.session_state["perfil"] = user_info["perfil"]
+                str_lit.session_state["tentativas_login"] = 0
+                str_lit.session_state["tempo_bloqueio"] = None
                 str_lit.rerun()
             else:
-                str_lit.error(f"❌ Senha incorreta! Tentativa {str_lit.session_state['tentativas_login']} de 3.")
-    str_lit.stop()
+                str_lit.session_state["tentativas_login"] += 1
+                
+                if str_lit.session_state["tentativas_login"] >= 3:
+                    str_lit.session_state["tempo_bloqueio"] = datetime.now() + timedelta(minutes=1)
+                    str_lit.error("❌ Limite de 3 tentativas atingido. Bloqueado por 1 minuto.")
+                    str_lit.rerun()
+                else:
+                    str_lit.error(f"❌ Senha incorreta! Tentativa {str_lit.session_state['tentativas_login']} de 3.")
+        str_lit.stop()
 
 # =========================================================
 # BARRA LATERAL (MENU E PERFIL)
