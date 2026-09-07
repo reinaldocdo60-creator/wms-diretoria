@@ -818,11 +818,17 @@ elif opcao_menu == "🤖 Assistente IA":
                 try:
                     from google import genai
                     
-                    # Cole aqui a sua chave completa que começa com AQ.:
+                    # Cole aqui a sua chave completa que começa com AQ.
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Inicializa o cliente oficial moderno
-                    client = genai.Client(api_key=api_key_valor)
+                    # CLIENTE CORRIGIDO PARA ACEITAR A CHAVE "AQ." DO AI STUDIO
+                    client = genai.Client(
+                        http_options={
+                            "headers": {
+                                "x-goog-api-key": api_key_valor
+                            }
+                        }
+                    )
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
@@ -838,3 +844,4 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
