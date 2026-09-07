@@ -120,6 +120,10 @@ if "linhas_congeladas" not in str_lit.session_state:
     str_lit.session_state["linhas_congeladas"] = pd.DataFrame()
 if "modo_impressao" not in str_lit.session_state:
     str_lit.session_state["modo_impressao"] = False
+if "modo_impressao_inventario" not in str_lit.session_state:
+    str_lit.session_state["modo_impressao_inventario"] = False
+if "modo_impressao_manual" not in str_lit.session_state:
+    str_lit.session_state["modo_impressao_manual"] = False
 
 # Controle de tentativas de login incorretas e bloqueio temporário
 if "tentativas_login" not in str_lit.session_state:
@@ -314,6 +318,8 @@ if str_lit.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
     str_lit.session_state["q_busca"] = ""
     str_lit.session_state["q_valid"] = ""
     str_lit.session_state["modo_impressao"] = False
+    str_lit.session_state["modo_impressao_inventario"] = False
+    str_lit.session_state["modo_impressao_manual"] = False
     str_lit.rerun()
 
 def validar_admin():
@@ -415,7 +421,6 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
         elif df_res.empty:
             str_lit.error("❌ VALIDAÇÃO FALHOU: Nenhum item encontrado na pesquisa atual para validar.")
         else:
-            # Verifica se o código validado (bipado) bate com o CODINTERNO ou CODFAB presente no resultado filtrado (df_res)
             match_interno = (df_res["CODINTERNO"].astype(str).str.upper() == q_valid).any()
             match_fab = (df_res["CODFAB"].astype(str).str.upper() == q_valid).any()
             
@@ -618,9 +623,37 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
 # TELA 6: SUGESTÃO DE INVENTÁRIO MENSAL
 # =========================================================
 elif opcao_menu == "📊 Sugestão de Inventário Mensal":
-    str_lit.header("📊 Sugestão de Inventário por Amostragem")
-    str_lit.info("💡 Esta é uma listagem de sugestão direcionada para o inventário cíclico mensal. Focada em itens prioritários da base para conferência física preventiva.")
     
+    if str_lit.session_state.get("modo_impressao_inventario", False):
+        str_lit.markdown("## 🖨️ Pré-visualização de Impressão - Sugestão de Inventário")
+        str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
+        
+        if str_lit.button("⬅️ Voltar para a Sugestão Normal", use_container_width=True):
+            str_lit.session_state["modo_impressao_inventario"] = False
+            str_lit.rerun()
+            
+        str_lit.markdown("---")
+        
+        df_amostra_print = str_lit.session_state.get("df_base", carregar_dados()).copy()
+        if not df_amostra_print.empty:
+            df_amostra_print = df_amostra_print.head(10)
+        else:
+            df_amostra_print = df_amostra_print.iloc[0:0]
+            
+        str_lit.write(f"**Relatório de Amostragem para Inventário Cíclico** | **Total de itens:** {len(df_amostra_print)}")
+        str_lit.table(df_amostra_print)
+        str_lit.stop()
+
+    str_lit.header("📊 Sugestão de Inventário por Amostragem")
+    
+    col_inv1, col_inv2 = str_lit.columns([3, 1])
+    with col_inv1:
+        str_lit.info("💡 Esta é uma listagem de sugestão direcionada para o inventário cíclico mensal. Focada em itens prioritários da base para conferência física preventiva.")
+    with col_inv2:
+        if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
+            str_lit.session_state["modo_impressao_inventario"] = True
+            str_lit.rerun()
+
     df_amostra = str_lit.session_state.get("df_base", carregar_dados()).copy()
     
     if not df_amostra.empty:
@@ -720,15 +753,63 @@ elif opcao_menu == "👥 Gerenciar Usuários":
 # TELA 9: MANUAL DE INSTRUÇÕES
 # =========================================================
 elif opcao_menu == "📖 Manual de Instruções":
+    
+    if str_lit.session_state.get("modo_impressao_manual", False):
+        str_lit.markdown("## 🖨️ Pré-visualização de Impressão - Manual de Instruções")
+        str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
+        
+        if str_lit.button("⬅️ Voltar para o Manual Normal", use_container_width=True):
+            str_lit.session_state["modo_impressao_manual"] = False
+            str_lit.rerun()
+            
+        str_lit.markdown("---")
+        str_lit.markdown("### 📖 Manual de Instruções e Uso do WMS")
+        str_lit.markdown("""
+        ### 1. 🔍 Pesquisa e Validação (Geral)
+        * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
+        * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
+        * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
+        * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras lateral, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
+
+        ### 2. 🚚 Mover Produto
+        * Permite alterar o endereço físico de um item existente (Rua, Box, Altura, Caixa, Pallet e PLT) de forma rápida e segura.
+
+        ### 3. ➕ Cadastrar / Ocupar *(Acesso Admin)*
+        * Utilizado para incluir novos produtos ou novos endereçamentos de itens na base de dados geral do armazém.
+
+        ### 4. 🧹 Limpar Endereço / Excluir Linha *(Acesso Admin)*
+        * Permite consultar um código e escolher especificamente qual linha/endereço apagar da planilha, ou remover todas as ocorrências de uma vez caso o item saia de linha.
+
+        ### 5. 📥 Importar / Atualizar Base em Massa *(Acesso Admin)*
+        * Serve para carregar uma nova planilha Excel completa (`Base_Dados`) atualizando instantaneamente o sistema do WMS em tempo real.
+
+        ### 6. 📊 Sugestão de Inventário Mensal
+        * Exibe uma seleção prática de 10 produtos direcionada para apoiar o planejamento do inventário cíclico ou amostragem periódica da operação.
+
+        ### 7. 💾 Backup e Histórico
+        * Permite baixar a qualquer momento uma cópia idêntica da planilha Excel atualizada e formatada corporativamente.
+
+        ### 8. 👥 Gerenciar Usuários *(Acesso Admin)*
+        * Permite cadastrar novos colaboradores, alterar senhas de acesso existentes ou remover perfis com total segurança.
+        """)
+        str_lit.stop()
+
     str_lit.header("📖 Manual de Instruções e Uso do WMS")
-    str_lit.markdown("Bem-vindo ao manual rápido de operações do sistema WMS. Utilize as orientações abaixo para entender o fluxo de cada rotina.")
+    
+    col_m1, col_m2 = str_lit.columns([3, 1])
+    with col_m1:
+        str_lit.markdown("Bem-vindo ao manual rápido de operações do sistema WMS. Utilize as orientações abaixo para entender o fluxo de cada rotina.")
+    with col_m2:
+        if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
+            str_lit.session_state["modo_impressao_manual"] = True
+            str_lit.rerun()
     
     str_lit.markdown("---")
     
     str_lit.markdown("""
     ### 1. 🔍 Pesquisa e Validação (Geral)
     * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
-    * **Validação (Conferência de Seperação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
+    * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
     * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
     * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras lateral, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
 
