@@ -816,19 +816,19 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    from google import genai
+                    import google.generativeai as genai
                     
                     # Cole sua chave exata aqui dentro das aspas:
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    client = genai.Client(api_key=api_key_valor)
+                    genai.configure(api_key=api_key_valor)
+                    
+                    # Usando o modelo padrão compatível
+                    model = genai.GenerativeModel("gemini-1.5-flash")
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    response = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
-                    )
+                    response = model.generate_content(f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}")
                     
                     resposta_ia = response.text
                     str_lit.markdown(resposta_ia)
