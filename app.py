@@ -799,7 +799,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
 # =========================================================
 elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
-    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
+    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processes e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
     if "historico_chat" not in str_lit.session_state:
         str_lit.session_state["historico_chat"] = []
@@ -821,8 +821,9 @@ elif opcao_menu == "🤖 Assistente IA":
                     # Cole aqui a sua chave completa que começa com AQ.
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # CLIENTE CORRIGIDO PARA ACEITAR A CHAVE "AQ." DO AI STUDIO
+                    # Inicialização combinada para contornar o bug de validação de chaves novas (AQ.)
                     client = genai.Client(
+                        api_key=api_key_valor,
                         http_options={
                             "headers": {
                                 "x-goog-api-key": api_key_valor
