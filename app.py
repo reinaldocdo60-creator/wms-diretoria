@@ -5,6 +5,19 @@ import json
 from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Configuração da chave para o Gemini
+try:
+    if "GEMINI_API_KEY" in str_lit.secrets:
+        genai.configure(api_key=str_lit.secrets["GEMINI_API_KEY"])
+    else:
+        genai.configure(api_key="AQ.Ab8RN6I1bXpNqsD3J7zN046MfeH4ld3DmrwraC1srEuEAnczaA")
+except Exception:
+    pass
 
 # =========================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -321,7 +334,8 @@ opcoes_menu = [
     "📥 Importar / Atualizar Base em Massa",
     "📊 Sugestão de Inventário Mensal",
     "💾 Backup e Histórico",
-    "📖 Manual de Instruções"
+    "📖 Manual de Instruções",
+    "🤖 Assistente IA"
 ]
 
 if str_lit.session_state["perfil"] == "ADMIN":
@@ -701,194 +715,127 @@ elif opcao_menu == "📊 Sugestão de Inventário Mensal":
         str_lit.stop()
 
     str_lit.header("📊 Sugestão de Inventário por Amostragem")
+    str_lit.info("💡 Esta é uma listagem de sugestão direcionada para o inventário cíclico mensal. Focada em itens prioritários da base para conferência física preventiva.")
     
-    col_inv1, col_inv2 = str_lit.columns([3, 1])
-    with col_inv1:
-        str_lit.info("💡 Esta é uma listagem de sugestão direcionada para o inventário cíclico mensal. Focada em itens prioritários da base para conferência física preventiva.")
-    with col_inv2:
-        if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
+    df_inv = str_lit.session_state.get("df_base", carregar_dados()).copy()
+    if not df_inv.empty:
+        df_inv = df_inv.head(20) # Sugere os 20 primeiros itens
+    
+    col_inv_cab, col_inv_btn = str_lit.columns([3, 1])
+    with col_inv_cab:
+        str_lit.markdown("### Amostragem Sugerida para Auditoria")
+    with col_inv_btn:
+        if str_lit.button("🖨️ Imprimir Inventário", use_container_width=True):
             str_lit.session_state["modo_impressao_inventario"] = True
             str_lit.rerun()
 
-    df_amostra = str_lit.session_state.get("df_base", carregar_dados()).copy()
-    
-    if not df_amostra.empty:
-        df_sugestao_10 = df_amostra.head(10)
-        str_lit.write(f"Exibindo os **10 produtos sugeridos** para a verificação de amostragem deste período:")
-        str_lit.table(df_sugestao_10)
-    else:
-        str_lit.warning("A base de dados está vazia no momento.")
+    str_lit.table(df_inv)
 
 # =========================================================
-# TELA 7: BACKUP E HISTÓRICO
+# TELA: BACKUP E HISTÓRICO (EXEMPLO DE TELA ADICIONAL)
 # =========================================================
 elif opcao_menu == "💾 Backup e Histórico":
-    str_lit.header("💾 Backup e Exportação da Base")
-    str_lit.write("Baixe uma cópia da base de estoque atualizada (já com formatação corporativa pronta para consulta offline):")
-    
+    str_lit.header("💾 Backup e Histórico da Base")
+    str_lit.write("Faça o download do backup da base de dados atual em formato Excel.")
     if os.path.exists(ARQUIVO_EXCEL):
         with open(ARQUIVO_EXCEL, "rb") as f:
             str_lit.download_button(
-                label="📥 Baixar Base_Estoque.xlsx Atualizada",
+                label="📥 Baixar Backup do Excel (.xlsx)",
                 data=f,
                 file_name=f"Backup_WMS_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
+    else:
+        str_lit.warning("Nenhum arquivo de base de dados encontrado para backup.")
 
 # =========================================================
-# TELA 8: GERENCIAMENTO DE USUÁRIOS
-# =========================================================
-elif opcao_menu == "👥 Gerenciar Usuários":
-    str_lit.header("👥 Gerenciamento de Colaboradores e Acessos")
-    if validar_admin():
-        str_lit.session_state["usuarios_db"] = carregar_usuarios()
-        db = str_lit.session_state["usuarios_db"]
-        
-        dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
-        str_lit.table(pd.DataFrame(dados_tabela))
-        
-        str_lit.divider()
-        str_lit.subheader("🔑 Alterar Senha de Usuário")
-        
-        col_alt1, col_alt2 = str_lit.columns(2)
-        with col_alt1:
-            usuario_para_alterar = str_lit.selectbox("Selecione o usuário para alterar a senha", list(db.keys()), key="sel_alt_user")
-        with col_alt2:
-            nova_senha_input = str_lit.text_input("Nova Senha", type="password", key="txt_nova_senha")
-            
-        if str_lit.button("💾 Salvar Nova Senha", use_container_width=True):
-            if not nova_senha_input:
-                str_lit.warning("Digite a nova senha.")
-            else:
-                db[usuario_para_alterar]["senha"] = nova_senha_input
-                salvar_usuarios(db)
-                str_lit.success(f"✅ Senha do usuário '{usuario_para_alterar.capitalize()}' alterada e salva com sucesso!")
-        
-        str_lit.divider()
-        str_lit.subheader("Cadastrar Novo Colaborador")
-        
-        col1, col2, col3 = str_lit.columns(3)
-        with col1:
-            novo_usuario = str_lit.text_input("Nome de Usuário").strip().lower()
-        with col2:
-            nova_senha = str_lit.text_input("Senha", type="password")
-        with col3:
-            novo_perfil = str_lit.selectbox("Perfil", ["OPERADOR", "ADMIN"])
-        
-        if str_lit.button("Cadastrar Usuário", use_container_width=True):
-            if not novo_usuario or not nova_senha:
-                str_lit.warning("Preencha o usuário e a senha.")
-            elif novo_usuario in db:
-                str_lit.error("Este usuário já existe!")
-            else:
-                db[novo_usuario] = {
-                    "senha": nova_senha,
-                    "perfil": novo_perfil
-                }
-                salvar_usuarios(db)
-                str_lit.success(f"Usuário '{novo_usuario.capitalize()}' cadastrado e salvo com sucesso!")
-                str_lit.rerun()
-                
-        str_lit.divider()
-        str_lit.subheader("Remover Usuário")
-        
-        usuarios_removiveis = [u for u in db.keys() if u != "admin"]
-        if usuarios_removiveis:
-            usuario_para_remover = str_lit.selectbox("Selecione o usuário para excluir", usuarios_removiveis)
-            if str_lit.button("Excluir Usuário Selecionado", type="primary"):
-                if usuario_para_remover in db:
-                    del db[usuario_para_remover]
-                    salvar_usuarios(db)
-                    str_lit.success(f"Usuário '{usuario_para_remover.capitalize()}' removido com sucesso!")
-                    str_lit.rerun()
-        else:
-            str_lit.info("Não há outros usuários cadastrados para remoção.")
-
-# =========================================================
-# TELA 9: MANUAL DE INSTRUÇÕES
+# TELA: MANUAL DE INSTRUÇÕES
 # =========================================================
 elif opcao_menu == "📖 Manual de Instruções":
-    
-    if str_lit.session_state.get("modo_impressao_manual", False):
-        str_lit.markdown("## 🖨️ Pré-visualização de Impressão - Manual de Instruções")
-        str_lit.info("Esta é a visualização limpa pronta para impressão. Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
-        
-        if str_lit.button("⬅️ Voltar para o Manual Normal", use_container_width=True):
-            str_lit.session_state["modo_impressao_manual"] = False
-            str_lit.rerun()
-            
-        str_lit.markdown("---")
-        str_lit.markdown("### 📖 Manual de Instruções e Uso do WMS")
-        str_lit.markdown("""
-        ### 1. 🔍 Pesquisa e Validação (Geral)
-        * **Filtro de Garantia:** Selecione a garantia desejada no menu suspenso para filtrar estritamente o escopo e evitar duplicidades caso existam códigos idênticos com garantias diferentes.
-        * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
-        * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
-        * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
-        * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras lateral, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
-
-        ### 2. 🚚 Mover Produto
-        * Permite alterar o endereço físico de um item existente (Rua, Box, Altura, Caixa, Pallet e PLT) de forma rápida e segura.
-
-        ### 3. ➕ Cadastrar / Ocupar *(Acesso Admin)*
-        * Utilizado para incluir novos produtos ou novos endereçamentos de itens na base de dados geral do armazém.
-
-        ### 4. 🧹 Limpar Endereço / Excluir Linha *(Acesso Admin)*
-        * Permite consultar um código e escolher especificamente qual linha/endereço apagar da planilha, ou remover todas as ocorrências de uma vez caso o item saia de linha.
-
-        ### 5. 📥 Importar / Atualizar Base em Massa *(Acesso Admin)*
-        * Serve para carregar uma nova planilha Excel completa (`Base_Dados`) atualizando instantaneamente o sistema do WMS em tempo real.
-
-        ### 6. 📊 Sugestão de Inventário Mensal
-        * Exibe uma seleção prática de 10 produtos direcionada para apoiar o planejamento do inventário cíclico ou amostragem periódica da operação.
-
-        ### 7. 💾 Backup e Histórico
-        * Permite baixar a qualquer momento uma cópia idêntica da planilha Excel atualizada e formatada corporativamente.
-
-        ### 8. 👥 Gerenciar Usuários *(Acesso Admin)*
-        * Permite cadastrar novos colaboradores, alterar senhas de acesso existentes ou remover perfis com total segurança.
-        """)
-        str_lit.stop()
-
-    str_lit.header("📖 Manual de Instruções e Uso do WMS")
-    
-    col_m1, col_m2 = str_lit.columns([3, 1])
-    with col_m1:
-        str_lit.markdown("Bem-vindo ao manual rápido de operações do sistema WMS. Utilize as orientações abaixo para entender o fluxo de cada rotina.")
-    with col_m2:
-        if str_lit.button("🖨️ Visualizar / Imprimir", use_container_width=True):
-            str_lit.session_state["modo_impressao_manual"] = True
-            str_lit.rerun()
-    
-    str_lit.markdown("---")
-    
+    str_lit.header("📖 Manual de Instruções do WMS")
     str_lit.markdown("""
-    ### 1. 🔍 Pesquisa e Validação (Geral)
-    * **Filtro de Garantia:** Selecione a garantia desejada no menu suspenso para filtrar estritamente o escopo e evitar duplicidades caso existam códigos idênticos com garantias diferentes.
-    * **Pesquisa:** Digite parte do código interno, descrição do produto ou endereço (Rua/Box) para localizar imediatamente os dados no estoque.
-    * **Validação (Conferência de Separação):** Após pesquisar o item desejado, utilize o segundo campo para bipar ou digitar o código da peça física separada. O sistema verificará se o código confere exatamente com os dados retornados na pesquisa atual, garantindo que o operador separou a peça correta.
-    * **Congelar Linhas:** Útil para fixar resultados de busca temporariamente enquanto faz outras consultas.
-    * **Impressão:** Clique no botão de visualização/impressão para gerar um relatório limpo sem barras lateral, ideal para imprimir ou salvar em PDF (`Ctrl + P`).
-
-    ### 2. 🚚 Mover Produto
-    * Permite alterar o endereço físico de um item existente (Rua, Box, Altura, Caixa, Pallet e PLT) de forma rápida e segura.
-
-    ### 3. ➕ Cadastrar / Ocupar *(Acesso Admin)*
-    * Utilizado para incluir novos produtos ou novos endereçamentos de itens na base de dados geral do armazém.
-
-    ### 4. 🧹 Limpar Endereço / Excluir Linha *(Acesso Admin)*
-    * Permite consultar um código e escolher especificamente qual linha/endereço apagar da planilha, ou remover todas as ocorrências de uma vez caso o item saia de linha.
-
-    ### 5. 📥 Importar / Atualizar Base em Massa *(Acesso Admin)*
-    * Serve para carregar uma nova planilha Excel completa (`Base_Dados`) atualizando instantaneamente o sistema do WMS em tempo real.
-
-    ### 6. 📊 Sugestão de Inventário Mensal
-    * Exibe uma seleção prática de 10 produtos direcionada para apoiar o planejamento do inventário cíclico ou amostragem periódica da operação.
-
-    ### 7. 💾 Backup e Histórico
-    * Permite baixar a qualquer momento uma cópia idêntica da planilha Excel atualizada e formatada corporativamente.
-
-    ### 8. 👥 Gerenciar Usuários *(Acesso Admin)*
-    * Permite cadastrar novos colaboradores, alterar senhas de acesso existentes ou remover perfis com total segurança.
+    Bem-vindo ao manual de operações do **WMS Litle**:
+    - **Pesquisa e Validação:** Utilize para consultar endereços, caixas e validar peças bipe a bipe.
+    - **Mover Produto:** Altere a rua, box ou altura de um produto mantendo o histórico atualizado.
+    - **Cadastrar / Ocupar:** Adicione novos itens ou novos endereços à base (Perfil Admin).
+    - **Limpar Endereço:** Remova ocorrências ou limpe registros obsoletos da base.
+    - **Assistente IA:** Tire dúvidas sobre processos e rotinas diretamente com a Inteligência Artificial.
     """)
+
+# =========================================================
+# TELA: GERENCIAR USUÁRIOS (APENAS ADMIN)
+# =========================================================
+elif opcao_menu == "👥 Gerenciar Usuários":
+    str_lit.header("👥 Gerenciamento de Usuários do Sistema")
+    if validar_admin():
+        db_users = str_lit.session_state.get("usuarios_db", {})
+        
+        # Exibe usuários cadastrados
+        df_users_display = pd.DataFrame([
+            {"USUARIO": u, "PERFIL": info["perfil"]} for u, info in db_users.items()
+        ])
+        str_lit.subheader("Usuários Ativos")
+        str_lit.table(df_users_display)
+        
+        str_lit.markdown("---")
+        str_lit.subheader("Adicionar Novo Usuário")
+        with str_lit.form("form_novo_usuario"):
+            novo_user = str_lit.text_input("Nome de Usuário").strip().lower()
+            nova_senha = str_lit.text_input("Senha", type="password").strip()
+            novo_perfil = str_lit.selectbox("Perfil", ["OPERADOR", "ADMIN"])
+            btn_add_user = str_lit.form_submit_button("Cadastrar Usuário", use_container_width=True)
+            
+            if btn_add_user:
+                if not novo_user or not nova_senha:
+                    str_lit.warning("Preencha o usuário e a senha.")
+                else:
+                    db_users[novo_user] = {"senha": nova_senha, "perfil": novo_perfil}
+                    salvar_usuarios(db_users)
+                    str_lit.success(f"✅ Usuário '{novo_user}' cadastrado com sucesso!")
+                    str_lit.rerun()
+
+# =========================================================
+# TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
+# =========================================================
+elif opcao_menu == "🤖 Assistente IA":
+    str_lit.title("🤖 Assistente Virtual WMS")
+    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
+
+    # Histórico de mensagens do chat na sessão
+    if "historico_chat" not in str_lit.session_state:
+        str_lit.session_state["historico_chat"] = []
+
+    # Exibe as mensagens anteriores
+    for mensagem in str_lit.session_state["historico_chat"]:
+        with str_lit.chat_message(mensagem["role"]):
+            str_lit.markdown(mensagem["content"])
+
+    # Entrada de texto do usuário
+    if duvida_usuario := str_lit.chat_input("Digite sua dúvida sobre o WMS ou operações de armazém..."):
+        str_lit.session_state["historico_chat"].append({"role": "user", "content": duvida_usuario})
+        with str_lit.chat_message("user"):
+            str_lit.markdown(duvida_usuario)
+
+        # Processa a resposta com o Gemini
+        with str_lit.chat_message("assistant"):
+            with str_lit.spinner("Consultando as regras do WMS..."):
+                try:
+                    instrucao_sistema = """
+                    Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS).
+                    Responda dúvidas sobre as rotinas, processos, controle de estoque e regras de negócio do sistema de forma clara, prestativa e em português brasileiro.
+                    """
+
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction=instrucao_sistema
+                    )
+                    
+                    response = model.generate_content(duvida_usuario)
+                    resposta_ia = response.text
+                    str_lit.markdown(resposta_ia)
+                    
+                    str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+
+                except Exception as erro:
+                    str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
