@@ -115,7 +115,6 @@ def carregar_dados():
                 if col not in df.columns:
                     df[col] = ""
                     
-            # Mantém estritamente a ordem padrão das colunas
             df = df[COLUNAS_PADRAO]
             return df
         except Exception:
@@ -132,7 +131,7 @@ def salvar_dados(df):
     for col in COLUNAS_PADRAO:
         if col not in df.columns:
             df[col] = ""
-    df = df[COLUNAS_PADRAO] # Assegura a ordem correta antes de gravar no Excel
+    df = df[COLUNAS_PADRAO]
     
     with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Base_Dados", index=False)
@@ -346,25 +345,27 @@ elif opcao_menu == "🚚 Mover Produto":
                     str_lit.error("Produto não localizado no estoque.")
 
 # =========================================================
-# TELA 3: CADASTRAR / OCUPAR (PADRONIZADO NA ORDEM CORRETA)
+# TELA 3: CADASTRAR / OCUPAR (REORGANIZADO NA ORDEM EXATA DA PESQUISA/BASE)
 # =========================================================
 elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar / Ocupar Endereço")
     if validar_admin():
         with str_lit.form("form_cadastrar"):
+            # Ordem rigorosa correspondente à base de dados:
+            # ["CODINTERNO", "CODFAB", "DESCRICAO", "RUA", "BOX", "ALTURA", "PALLET", "PLT", "CAIXA", "GARANTIA"]
             col_c1, col_c2 = str_lit.columns(2)
             with col_c1:
-                cod_int = str_lit.text_input("Cód. Interno *").strip().upper()
-                cod_fab = str_lit.text_input("Cód. Fabricante *").strip().upper()
-                desc = str_lit.text_input("Descrição Completa *").strip().upper()
-                rua = str_lit.text_input("Rua *").strip().upper()
-                box = str_lit.text_input("Box *").strip().upper()
+                cod_int = str_lit.text_input("1. CODINTERNO (Cód. Interno) *").strip().upper()
+                cod_fab = str_lit.text_input("2. CODFAB (Cód. Fabricante) *").strip().upper()
+                desc = str_lit.text_input("3. DESCRICAO (Descrição Completa) *").strip().upper()
+                rua = str_lit.text_input("4. RUA *").strip().upper()
+                box = str_lit.text_input("5. BOX *").strip().upper()
             with col_c2:
-                altura = str_lit.text_input("Altura *").strip().upper()
-                pallet = str_lit.text_input("Pallet").strip().upper()
-                plt = str_lit.text_input("PLT").strip().upper()
-                caixa = str_lit.text_input("Caixa").strip().upper()
-                garantia = str_lit.text_input("Garantia").strip().upper()
+                altura = str_lit.text_input("6. ALTURA *").strip().upper()
+                pallet = str_lit.text_input("7. PALLET").strip().upper()
+                plt = str_lit.text_input("8. PLT").strip().upper()
+                caixa = str_lit.text_input("9. CAIXA").strip().upper()
+                garantia = str_lit.text_input("10. GARANTIA").strip().upper()
             
             btn_cad = str_lit.form_submit_button("Cadastrar / Ocupar", use_container_width=True)
             if btn_cad:
@@ -373,7 +374,6 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                 else:
                     df_atual = str_lit.session_state["df_base"]
                     
-                    # Cria o registro exatamente alinhado com a ordem padrão das colunas
                     novo_registro = {
                         "CODINTERNO": cod_int,
                         "CODFAB": cod_fab,
@@ -439,7 +439,6 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 df_novo = df_novo.fillna("")
                 df_novo.columns = [str(c).strip().upper() for c in df_novo.columns]
                 
-                # Garante que colunas novas existam e ordena conforme a estrutura padrão
                 for col in COLUNAS_PADRAO:
                     if col not in df_novo.columns:
                         df_novo[col] = ""
