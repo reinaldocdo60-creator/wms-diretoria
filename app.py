@@ -818,15 +818,15 @@ elif opcao_menu == "🤖 Assistente IA":
                 try:
                     from google import genai
                     
-                    # Cole sua chave exata que começa com AQ. aqui dentro das aspas:
-                    api_key_valor = "AQ.Ab8RN6Jvc6Z6dpzipcayUOugxR-dflGB0vQjovbFUMOVRsnnCw"
+                    # Cole aqui a sua chave completa que começa com AQ.:
+                    api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Inicializa o cliente novo oficial
+                    # Inicializa o cliente oficial moderno
                     client = genai.Client(api_key=api_key_valor)
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Usando o modelo padrão atual do SDK novo
+                    # Usando o modelo padrão recomendado para essa arquitetura
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
