@@ -40,7 +40,6 @@ def carregar_usuarios():
         "admin": {"senha": "admin123", "perfil": "ADMIN"}
     }
     
-    # Tenta carregar do JSON dedicado
     if os.path.exists(ARQUIVO_USUARIOS):
         try:
             with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as f:
@@ -50,7 +49,6 @@ def carregar_usuarios():
         except Exception:
             pass
             
-    # Fallback: Se não tem o JSON mas o Excel tem a aba Usuarios antiga, tenta resgatar de lá uma vez
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             xl = pd.ExcelFile(ARQUIVO_EXCEL)
@@ -65,7 +63,7 @@ def carregar_usuarios():
                     if user:
                         db[user] = {"senha": senha, "perfil": perfil}
                 if db:
-                    salvar_usuarios(db) # Salva já no formato JSON novo
+                    salvar_usuarios(db)
                     return db
         except Exception:
             pass
@@ -248,7 +246,8 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
     tab1, tab2 = str_lit.tabs([f"🔎 Resultado ({len(df_res)})", f"❄️ Congeladas ({len(str_lit.session_state.get('linhas_congeladas', pd.DataFrame()))})"])
 
     with tab1:
-        str_lit.dataframe(df_res, use_container_width=True)
+        # st.table usado para fixar permanentemente o cabeçalho e impedir alterações de colunas pelo usuário
+        str_lit.table(df_res)
         
         if str_lit.session_state["perfil"] == "ADMIN" and not df_res.empty:
             str_lit.markdown("---")
@@ -289,7 +288,7 @@ if opcao_menu == "🔍 Pesquisa e Validação (Geral)":
                             str_lit.rerun()
 
     with tab2:
-        str_lit.dataframe(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()), use_container_width=True)
+        str_lit.table(str_lit.session_state.get("linhas_congeladas", pd.DataFrame()))
 
     if q_valid:
         df_total = str_lit.session_state.get("df_base", carregar_dados())
@@ -445,7 +444,7 @@ elif opcao_menu == "📥 Importar / Atualizar Base em Massa":
                 df_novo = df_novo[COLUNAS_PADRAO]
                 
                 str_lit.success("Planilha lida com sucesso! Pré-visualização das 10 primeiras linhas:")
-                str_lit.dataframe(df_novo.head(10), use_container_width=True)
+                str_lit.table(df_novo.head(10))
                 
                 if str_lit.button("🚀 Confirmar e Atualizar Base do WMS", use_container_width=True):
                     salvar_dados(df_novo)
@@ -482,7 +481,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
         db = str_lit.session_state["usuarios_db"]
         
         dados_tabela = [{"Usuário": k.capitalize(), "Perfil": v["perfil"]} for k, v in db.items()]
-        str_lit.dataframe(pd.DataFrame(dados_tabela), use_container_width=True)
+        str_lit.table(pd.DataFrame(dados_tabela))
         
         str_lit.divider()
         str_lit.subheader("🔑 Alterar Senha de Usuário")
