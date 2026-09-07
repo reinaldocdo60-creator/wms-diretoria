@@ -13,7 +13,7 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Carrega as variáveis do arquivo .env
+# Carrega as variáveis de ambiente locais (se houver arquivo .env)
 load_dotenv()
 
 # =====================================================
@@ -77,7 +77,7 @@ if opcao_menu == "Estoque":
     str_lit.title("📦 WMS - Gestão de Estoque")
     str_lit.markdown("Gerencie os produtos, entradas e saídas do armazém.")
     
-    # Exemplo de conteúdo da tela de estoque (ajuste conforme seu código existente)
+    # Exemplo de conteúdo da tela de estoque
     try:
         df_estoque = pd.read_excel("Base_Estoque.xlsx")
         str_lit.dataframe(df_estoque, use_container_width=True)
@@ -100,11 +100,16 @@ elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
-    # Inicializa o cliente do Gemini de forma segura
+    # Inicializa o cliente do Gemini capturando a chave de segurança do ambiente
     try:
-        client = genai.Client()
+        chave_api = os.environ.get("GEMINI_API_KEY")
+        if not chave_api:
+            # Caso queira testar informando a chave diretamente, substitua o texto abaixo entre aspas
+            chave_api = "SUA_CHAVE_AQUI" 
+            
+        client = genai.Client(api_key=chave_api)
     except Exception as e:
-        str_lit.error(f"Erro ao inicializar a IA. Verifique se a chave GEMINI_API_KEY está configurada corretamente no arquivo .env. Detalhe: {e}")
+        str_lit.error(f"Erro ao inicializar a IA. Verifique se a chave GEMINI_API_KEY está configurada. Detalhe: {e}")
         client = None
 
     # Histórico de mensagens do chat na sessão do Streamlit
