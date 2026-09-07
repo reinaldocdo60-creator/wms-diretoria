@@ -238,9 +238,13 @@ if not str_lit.session_state["autenticado"]:
 
     # Verifica se o usuário está atualmente bloqueado
     bloqueado_ate = str_lit.session_state.get("tempo_bloqueio", None)
+    
     if bloqueado_ate and datetime.now() < bloqueado_ate:
-        tempo_restante = int((bloqueado_ate - datetime.now()).total_seconds())
-        str_lit.error(f"❌ Muitas tentativas incorretas. Acesso temporariamente bloqueado. Tente novamente em **{tempo_restante} segundos**.")
+        str_lit.error("❌ Muitas tentativas incorretas. Acesso temporariamente bloqueado por segurança. Aguarde 1 minuto e tente novamente.")
+        
+        if str_lit.button("🔄 Verificar se o tempo acabou", use_container_width=True):
+            str_lit.rerun()
+            
         str_lit.stop()
     elif bloqueado_ate and datetime.now() >= bloqueado_ate:
         # Libera o bloqueio após passar o tempo
@@ -273,7 +277,7 @@ if not str_lit.session_state["autenticado"]:
             str_lit.session_state["tentativas_login"] += 1
             
             if str_lit.session_state["tentativas_login"] >= 3:
-                # Bloqueia por 1 minuto
+                # Bloqueia por 1 minuto a partir de agora
                 str_lit.session_state["tempo_bloqueio"] = datetime.now() + timedelta(minutes=1)
                 str_lit.error("❌ Senha incorreta! Limite de 3 tentativas atingido. Acesso bloqueado por 1 minuto.")
                 str_lit.rerun()
