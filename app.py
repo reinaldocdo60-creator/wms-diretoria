@@ -794,6 +794,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     salvar_usuarios(db_users)
                     str_lit.success(f"✅ Usuário '{novo_user}' cadastrado com sucesso!")
                     str_lit.rerun()
+
 # =========================================================
 # TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
 # =========================================================
@@ -819,10 +820,10 @@ elif opcao_menu == "🤖 Assistente IA":
                     import requests
                     import json
                     
-                    # Cole aqui a sua chave completa que começa com AQ.
+                    # Sua chave AQ. configurada de forma isolada
                     api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # CORREÇÃO DA URL: A API do Gemini exige o parâmetro ?key= na própria URL para requisições REST
+                    # URL construída respeitando a sintaxe HTTP do Google
                     url_api = f"https://googleapis.com{api_key_valor}"
                     
                     headers = {
@@ -843,7 +844,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     
                     if response.status_code == 200:
                         dados_resposta = response.json()
-                        # CORREÇÃO DO JSON: Acessando corretamente os índices da lista retornada pela API
+                        # Extração ajustada adicionando os índices de listas [0] para evitar erros no Python
                         resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
                         
                         str_lit.markdown(resposta_ia)
