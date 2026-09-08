@@ -797,62 +797,7 @@ elif opcao_menu == "👥 Gerenciar Usuários":
 
 python -m streamlit run app.py --server.clearOnRequestCache True
 
-# =========================================================
-# TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
-# =========================================================
-elif opcao_menu == "🤖 Assistente IA":
-    str_lit.title("🤖 Assistente Virtual WMS")
-    str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
 
-    if "historico_chat" not in str_lit.session_state:
-        str_lit.session_state["historico_chat"] = []
-
-    for mensagem in str_lit.session_state["historico_chat"]:
-        with str_lit.chat_message(mensagem["role"]):
-            str_lit.markdown(mensagem["content"])
-
-    if duvida_usuario := str_lit.chat_input("Digite sua dúvida sobre o WMS ou operações de armazém..."):
-        str_lit.session_state["historico_chat"].append({"role": "user", "content": duvida_usuario})
-        with str_lit.chat_message("user"):
-            str_lit.markdown(duvida_usuario)
-
-        with str_lit.chat_message("assistant"):
-            with str_lit.spinner("Consultando as regras do WMS..."):
-                try:
-                    import requests
-                    
-                    # URL oficial do endpoint do Gemini
-                    url_api = "https://googleapis.com"
-                    
-                    # Chave AQ. enviada via cabeçalho
-                    headers = {
-                        "x-goog-api-key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg",
-                        "Content-Type": "application/json"
-                    }
-                    
-                    prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
-                    
-                    payload = {
-                        "contents": [{
-                            "parts": [{
-                                "text": f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
-                            }]
-                        }]
-                    }
-                    
-                    response = requests.post(url_api, headers=headers, json=payload)
-                    
-                    if response.status_code == 200:
-                        dados_resposta = response.json()
-                        resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        str_lit.markdown(resposta_ia)
-                        str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
-                    else:
-                        str_lit.error(f"Erro na API ({response.status_code}): {response.text}")
-
-                except Exception as erro:
-                    str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
 
 
 
