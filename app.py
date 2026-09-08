@@ -819,13 +819,18 @@ elif opcao_menu == "🤖 Assistente IA":
                 try:
                     import requests
                     import json
+                    from urllib.parse import urlencode
                     
-                    # URL fixa e imutável - sem risco de misturar com a chave
-                    url_api = "https://googleapis.com"
+                    # Endereço base limpo da API do Gemini
+                    base_url = "https://googleapis.com"
                     
-                    # Chave inserida de forma 100% isolada dentro dos cabeçalhos protegidos
+                    # Sua chave AQ. isolada
+                    params = {"key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"}
+                    
+                    # Montagem da URL de forma segura (Previne erros de digitação e corrupção de string)
+                    url_api = f"{base_url}?{urlencode(params)}"
+                    
                     headers = {
-                        "x-goog-api-key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg",
                         "Content-Type": "application/json"
                     }
                     
@@ -843,7 +848,7 @@ elif opcao_menu == "🤖 Assistente IA":
                     
                     if response.status_code == 200:
                         dados_resposta = response.json()
-                        # Extração segura tratando as listas internas da API do Gemini
+                        # Extração segura tratando os índices de listas da API
                         resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
                         
                         str_lit.markdown(resposta_ia)
@@ -853,6 +858,7 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
