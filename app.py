@@ -817,18 +817,17 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    import os
                     from google import genai
                     
-                    # Define a sua chave AQ. diretamente na memória do ambiente antes do cliente iniciar
-                    os.environ["GEMINI_API_KEY"] = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
+                    # Sua chave oficial AQ. mapeada diretamente no parâmetro nativo do SDK
+                    api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Inicializa o cliente sem parâmetros adicionais (ele lerá a variável inserida acima)
-                    client = genai.Client()
+                    # Inicializa o cliente oficial moderno passando a chave explicitamente
+                    client = genai.Client(api_key=api_key_valor)
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Chamada oficial e otimizada com o modelo recomendado
+                    # Chamada com o modelo padrão recomendado da arquitetura moderna
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
@@ -840,6 +839,7 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
