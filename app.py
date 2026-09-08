@@ -795,12 +795,19 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     str_lit.success(f"✅ Usuário '{novo_user}' cadastrado com sucesso!")
                     str_lit.rerun()
 
+python -m streamlit run app.py --server.clearOnRequestCache True
 # =========================================================
 # TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
 # =========================================================
 elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
+
+    # FORÇA A LIMPEZA DE CACHE DO STREAMLIT PARA EVITAR ERROS ANTIGOS REMANESCENTES
+    if "limpeza_inicial_cache" not in str_lit.session_state:
+        str_lit.cache_data.clear()
+        str_lit.cache_resource.clear()
+        str_lit.session_state["limpeza_inicial_cache"] = True
 
     if "historico_chat" not in str_lit.session_state:
         str_lit.session_state["historico_chat"] = []
@@ -817,28 +824,43 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    from google import genai
+                    import requests
                     
-                    # Sua chave oficial AQ. mapeada diretamente no parâmetro nativo do SDK
-                    api_key_valor = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
+                    # Endereço base limpo da API oficial (Imutável)
+                    url_api = "https://googleapis.com"
                     
-                    # Inicializa o cliente oficial moderno passando a chave explicitamente
-                    client = genai.Client(api_key=api_key_valor)
+                    # Injeção manual explícita via Cabeçalho Padrão para chaves novas "AQ."
+                    headers = {
+                        "x-goog-api-key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg",
+                        "Content-Type": "application/json"
+                    }
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    # Chamada com o modelo padrão recomendado da arquitetura moderna
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
-                    )
+                    payload = {
+                        "contents": [{
+                            "parts": [{
+                                "text": f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
+                            }]
+                        }]
+                    }
                     
-                    resposta_ia = response.text
-                    str_lit.markdown(resposta_ia)
-                    str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+                    # Requisição HTTP direta que ignora bugs dos SDKs locais
+                    response = requests.post(url_api, headers=headers, json=payload)
+                    
+                    if response.status_code == 200:
+                        dados_resposta = response.json()
+                        # Mapeamento seguro das listas internas do JSON retornado pelo Google
+                        resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        str_lit.markdown(resposta_ia)
+                        str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
+                    else:
+                        str_lit.error(f"Erro na API ({response.status_code}): {response.text}")
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
