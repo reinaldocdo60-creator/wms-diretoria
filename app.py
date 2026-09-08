@@ -796,18 +796,13 @@ elif opcao_menu == "👥 Gerenciar Usuários":
                     str_lit.rerun()
 
 python -m streamlit run app.py --server.clearOnRequestCache True
+
 # =========================================================
 # TELA: ASSISTENTE VIRTUAL DE IA (GEMINI)
 # =========================================================
 elif opcao_menu == "🤖 Assistente IA":
     str_lit.title("🤖 Assistente Virtual WMS")
     str_lit.markdown("Tire suas dúvidas sobre as rotinas, processos e regras de negócio do nosso sistema de gerenciamento de armazém.")
-
-    # FORÇA A LIMPEZA DE CACHE DO STREAMLIT PARA EVITAR ERROS ANTIGOS REMANESCENTES
-    if "limpeza_inicial_cache" not in str_lit.session_state:
-        str_lit.cache_data.clear()
-        str_lit.cache_resource.clear()
-        str_lit.session_state["limpeza_inicial_cache"] = True
 
     if "historico_chat" not in str_lit.session_state:
         str_lit.session_state["historico_chat"] = []
@@ -826,10 +821,10 @@ elif opcao_menu == "🤖 Assistente IA":
                 try:
                     import requests
                     
-                    # Endereço base limpo da API oficial (Imutável)
+                    # URL oficial do endpoint do Gemini
                     url_api = "https://googleapis.com"
                     
-                    # Injeção manual explícita via Cabeçalho Padrão para chaves novas "AQ."
+                    # Chave AQ. enviada via cabeçalho
                     headers = {
                         "x-goog-api-key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg",
                         "Content-Type": "application/json"
@@ -845,12 +840,10 @@ elif opcao_menu == "🤖 Assistente IA":
                         }]
                     }
                     
-                    # Requisição HTTP direta que ignora bugs dos SDKs locais
                     response = requests.post(url_api, headers=headers, json=payload)
                     
                     if response.status_code == 200:
                         dados_resposta = response.json()
-                        # Mapeamento seguro das listas internas do JSON retornado pelo Google
                         resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
                         
                         str_lit.markdown(resposta_ia)
@@ -860,6 +853,7 @@ elif opcao_menu == "🤖 Assistente IA":
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
