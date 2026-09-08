@@ -817,47 +817,30 @@ elif opcao_menu == "🤖 Assistente IA":
         with str_lit.chat_message("assistant"):
             with str_lit.spinner("Consultando as regras do WMS..."):
                 try:
-                    import requests
-                    import json
-                    from urllib.parse import urlencode
+                    import os
+                    from google import genai
                     
-                    # Endereço base limpo da API do Gemini
-                    base_url = "https://googleapis.com"
+                    # Define a sua chave AQ. diretamente na memória do ambiente antes do cliente iniciar
+                    os.environ["GEMINI_API_KEY"] = "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"
                     
-                    # Sua chave AQ. isolada
-                    params = {"key": "AQ.Ab8RN6LnwMvVl9Q3cYVjAm2A173bLltqeSYaqn5QK_EF8ERojg"}
-                    
-                    # Montagem da URL de forma segura (Previne erros de digitação e corrupção de string)
-                    url_api = f"{base_url}?{urlencode(params)}"
-                    
-                    headers = {
-                        "Content-Type": "application/json"
-                    }
+                    # Inicializa o cliente sem parâmetros adicionais (ele lerá a variável inserida acima)
+                    client = genai.Client()
                     
                     prompt_sistema = "Você é o assistente virtual oficial de um Sistema de Gestão de Armazém (WMS). Responda dúvidas sobre as rotinas, processos e regras de negócio do sistema de forma clara, prestativa e em português brasileiro."
                     
-                    payload = {
-                        "contents": [{
-                            "parts": [{
-                                "text": f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}"
-                            }]
-                        }]
-                    }
+                    # Chamada oficial e otimizada com o modelo recomendado
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=f"{prompt_sistema}\n\nDúvida do usuário: {duvida_usuario}",
+                    )
                     
-                    response = requests.post(url_api, headers=headers, json=payload)
-                    
-                    if response.status_code == 200:
-                        dados_resposta = response.json()
-                        # Extração segura tratando os índices de listas da API
-                        resposta_ia = dados_resposta["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        str_lit.markdown(resposta_ia)
-                        str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
-                    else:
-                        str_lit.error(f"Erro na API ({response.status_code}): {response.text}")
+                    resposta_ia = response.text
+                    str_lit.markdown(resposta_ia)
+                    str_lit.session_state["historico_chat"].append({"role": "assistant", "content": resposta_ia})
 
                 except Exception as erro:
                     str_lit.error(f"Desculpe, ocorreu um erro ao consultar a IA: {erro}")
+
 
 
 
