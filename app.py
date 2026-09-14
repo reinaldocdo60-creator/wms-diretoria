@@ -250,7 +250,7 @@ if opcao_menu == "🔍 Pesquisa e Validação":
         
         if str_lit.session_state.get("perfil_atual", "") == "ADMIN":
             str_lit.markdown("---")
-            str_lit.markdown("### 🗑️ Exclusão Rápida de Linha (Cascata por Garantia / Código)")
+            str_lit.markdown("### 🗑️ Exclusão Rápida (Cascata por Garantia do Item)")
             
             opcoes_linhas = []
             for idx, row in df_filtrado.iterrows():
@@ -259,17 +259,18 @@ if opcao_menu == "🔍 Pesquisa e Validação":
                 desc_val = row.get("DESCRICAO", "N/D")
                 rua_val = row.get("RUA", "N/D")
                 box_val = row.get("BOX", "N/D")
-                texto_exibicao = f"Garantia: {garantia_val} | Código: {codigo_val} | Descrição: {desc_val} | Rua: {rua_val}, Box: {box_val}"
+                # Formato em cascata priorizando a Garantia visualmente
+                texto_exibicao = f"[{garantia_val}] ➔ Código: {codigo_val} | Descrição: {desc_val} | Endereço: Rua {rua_val}, Box {box_val}"
                 opcoes_linhas.append((idx, texto_exibicao))
             
             selecao_excluir = str_lit.selectbox(
-                "Selecione o item na cascata abaixo para exclusão:",
+                "Selecione a Garantia / Registro desejado na cascata para exclusão:",
                 options=[None] + [item[0] for item in opcoes_linhas],
-                format_func=lambda x: next((item[1] for item in opcoes_linhas if item[0] == x), "Selecione o registro...") if x is not None else "Selecione o registro..."
+                format_func=lambda x: next((item[1] for item in opcoes_linhas if item[0] == x), "Selecione o item...") if x is not None else "Selecione o item..."
             )
             
             if selecao_excluir is not None:
-                if str_lit.button("❌ Confirmar Exclusão Destes Dados", type="primary"):
+                if str_lit.button("❌ Confirmar Exclusão deste Registro", type="primary"):
                     df = df.drop(index=selecao_excluir).reset_index(drop=True)
                     salvar_dados(df)
                     str_lit.session_state["df_estoque"] = df
@@ -396,10 +397,10 @@ elif opcao_menu == "📥 Importar / Atualizar Base":
     if validar_admin():
         str_lit.write("Faça o upload de uma nova planilha Excel (`.xlsx`) para atualizar a base de dados central.")
         
-        # Botão para baixar a planilha modelo oficial com os cabeçalhos corretos
+        # Gabarito oficial utilizando exatamente as colunas padrão do WMS
         output = io.BytesIO()
         df_modelo = pd.DataFrame(columns=["GARANTIA", "CODIGO", "DESCRICAO", "RUA", "BOX", "ALTURA", "QUANTIDADE"])
-        df_modelo.loc[0] = ["GARANTIA A", "EXEMPLO01", "Peça Exemplo", "R01", "B01", "A1", "10"]
+        df_modelo.loc[0] = ["GARANTIA A", "PROD001", "Amortecedor Dianteiro", "R01", "B05", "A1", "10"]
         df_modelo.to_excel(output, index=False)
         output.seek(0)
         
@@ -486,10 +487,10 @@ elif opcao_menu == "📖 Manual de Instruções":
         str_lit.markdown("---")
         str_lit.markdown("""
         ### WMS LITLE - MANUAL RÁPIDO DE OPERAÇÃO
-        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços. Use o campo de validação para conferir o código bipeado da peça separada. Administradores possuem menu cascata integrado nos resultados para exclusão rápida de linhas.
+        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços. Use o campo de validação para conferir o código bipeado da peça separada. Administradores contam com menu cascata priorizando a Garantia para exclusão rápida de linhas.
         2. **Mover Produto:** Altere a localização de itens informando o código e o novo endereço de rua, box e altura.
         3. **Cadastrar / Ocupar:** Adicione novos itens à base preenchendo todos os campos obrigatórios (Restrito a Admin).
-        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial com os cabeçalhos corretos (`GARANTIA`, `CODIGO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa via arquivo Excel (Restrito a Admin).
+        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial com os cabeçalhos padrão (`GARANTIA`, `CODIGO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa via arquivo Excel (Restrito a Admin).
         5. **Backup e Gerenciamento:** Realize backups de segurança e gerencie usuários e perfis com facilidade.
         """)
         
@@ -517,7 +518,7 @@ elif opcao_menu == "📖 Manual de Instruções":
       * Selecione a **Garantia** desejada para filtrar o escopo inicial.
       * Digite no campo de **Pesquisa** o código, descrição ou endereço.
       * Utilize o campo de **Validação** para bipar/digitar o código da peça separada e confirmar se ela pertence ao grupo consultado.
-      * Administradores contam com uma **opção em cascata logo abaixo dos resultados** para excluir linhas específicas com base na garantia e código pesquisado.
+      * Administradores contam com uma **opção em cascata (com destaque em formato de garantia) logo abaixo dos resultados** para excluir linhas específicas com facilidade.
       * É possível **Congelar** linhas da pesquisa e imprimir o relatório formatado.
 
     * **🚚 Mover Produto:**
