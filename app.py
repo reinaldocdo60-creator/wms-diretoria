@@ -244,38 +244,35 @@ if opcao_menu == "🔍 Pesquisa e Validação":
         mascara = df_filtrado.astype(str).apply(lambda x: x.str.contains(termo_busca, case=False, na=False)).any(axis=1)
         df_filtrado = df_filtrado[mascara]
 
-    str_lit.subheader("📋 Resultados da Pesquisa")
+    str_lit.subheader("📋 Resultados da Pesquisa e Ações")
     if not df_filtrado.empty:
-        str_lit.dataframe(df_filtrado, use_container_width=True)
+        is_admin = (str_lit.session_state.get("perfil_atual", "") == "ADMIN")
         
-        if str_lit.session_state.get("perfil_atual", "") == "ADMIN":
+        # Exibe cada registro em formato de linha interativa com o botão de exclusão integrado
+        for idx, row in df_filtrado.iterrows():
+            if is_admin:
+                col_dados, col_acao = str_lit.columns([5, 1])
+            else:
+                col_dados = str_lit.columns(1)[0]
+                
+            with col_dados:
+                str_lit.markdown(
+                    f"**Garantia:** `{row.get('GARANTIA', 'N/D')}` | "
+                    f"**Código:** `{row.get('CODIGO', 'N/D')}` | "
+                    f"**Descrição:** {row.get('DESCRICAO', 'N/D')} | "
+                    f"**Endereço:** Rua **{row.get('RUA', 'N/D')}**, Box **{row.get('BOX', 'N/D')}**, Altura **{row.get('ALTURA', 'N/D')}** | "
+                    f"**Qtd:** {row.get('QUANTIDADE', 'N/D')}"
+                )
+            
+            if is_admin:
+                with col_acao:
+                    if str_lit.button("🗑️ Excluir", key=f"del_{idx}", use_container_width=True):
+                        df = df.drop(index=idx).reset_index(drop=True)
+                        salvar_dados(df)
+                        str_lit.session_state["df_estoque"] = df
+                        str_lit.success("Registro excluído com sucesso!")
+                        str_lit.rerun()
             str_lit.markdown("---")
-            str_lit.markdown("### 🗑️ Exclusão Rápida (Cascata por Garantia do Item)")
-            
-            opcoes_linhas = []
-            for idx, row in df_filtrado.iterrows():
-                garantia_val = row.get("GARANTIA", "N/D")
-                codigo_val = row.get("CODIGO", "N/D")
-                desc_val = row.get("DESCRICAO", "N/D")
-                rua_val = row.get("RUA", "N/D")
-                box_val = row.get("BOX", "N/D")
-                # Formato em cascata priorizando a Garantia visualmente
-                texto_exibicao = f"[{garantia_val}] ➔ Código: {codigo_val} | Descrição: {desc_val} | Endereço: Rua {rua_val}, Box {box_val}"
-                opcoes_linhas.append((idx, texto_exibicao))
-            
-            selecao_excluir = str_lit.selectbox(
-                "Selecione a Garantia / Registro desejado na cascata para exclusão:",
-                options=[None] + [item[0] for item in opcoes_linhas],
-                format_func=lambda x: next((item[1] for item in opcoes_linhas if item[0] == x), "Selecione o item...") if x is not None else "Selecione o item..."
-            )
-            
-            if selecao_excluir is not None:
-                if str_lit.button("❌ Confirmar Exclusão deste Registro", type="primary"):
-                    df = df.drop(index=selecao_excluir).reset_index(drop=True)
-                    salvar_dados(df)
-                    str_lit.session_state["df_estoque"] = df
-                    str_lit.success("✅ Registro excluído com sucesso do banco de dados!")
-                    str_lit.rerun()
 
         col_cong1, col_cong2 = str_lit.columns(2)
         with col_cong1:
@@ -487,7 +484,7 @@ elif opcao_menu == "📖 Manual de Instruções":
         str_lit.markdown("---")
         str_lit.markdown("""
         ### WMS LITLE - MANUAL RÁPIDO DE OPERAÇÃO
-        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços. Use o campo de validação para conferir o código bipeado da peça separada. Administradores contam com menu cascata priorizando a Garantia para exclusão rápida de linhas.
+        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços. Use o campo de validação para conferir o código bipeado da peça separada. Administradores contam com um botão de exclusão direto em cada linha do resultado pesquisado.
         2. **Mover Produto:** Altere a localização de itens informando o código e o novo endereço de rua, box e altura.
         3. **Cadastrar / Ocupar:** Adicione novos itens à base preenchendo todos os campos obrigatórios (Restrito a Admin).
         4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial com os cabeçalhos padrão (`GARANTIA`, `CODIGO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa via arquivo Excel (Restrito a Admin).
@@ -518,7 +515,7 @@ elif opcao_menu == "📖 Manual de Instruções":
       * Selecione a **Garantia** desejada para filtrar o escopo inicial.
       * Digite no campo de **Pesquisa** o código, descrição ou endereço.
       * Utilize o campo de **Validação** para bipar/digitar o código da peça separada e confirmar se ela pertence ao grupo consultado.
-      * Administradores contam com uma **opção em cascata (com destaque em formato de garantia) logo abaixo dos resultados** para excluir linhas específicas com facilidade.
+      * Administradores contam com um **botão de exclusão direto em cada linha** do resultado da pesquisa.
       * É possível **Congelar** linhas da pesquisa e imprimir o relatório formatado.
 
     * **🚚 Mover Produto:**
