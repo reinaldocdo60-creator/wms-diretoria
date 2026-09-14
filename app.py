@@ -42,9 +42,12 @@ def salvar_usuarios(usuarios):
 if "usuarios_db" not in str_lit.session_state:
     str_lit.session_state["usuarios_db"] = carregar_usuarios()
 
+# Garantia de inicialização segura das variáveis de sessão
 if "autenticado" not in str_lit.session_state:
     str_lit.session_state["autenticado"] = False
+if "usuario_atual" not in str_lit.session_state:
     str_lit.session_state["usuario_atual"] = ""
+if "perfil_atual" not in str_lit.session_state:
     str_lit.session_state["perfil_atual"] = ""
 
 # =========================================================
@@ -148,8 +151,10 @@ if not str_lit.session_state["autenticado"]:
 # =========================================================
 with str_lit.sidebar:
     str_lit.image("https://cdn-icons-png.flaticon.com/512/2821/2821870.png", width=70)
-    str_lit.markdown(f"### Olá, **{str_lit.session_state['usuario_atual'].capitalize()}**")
-    str_lit.markdown(f"Perfil: `👤 {str_lit.session_state['perfil_atual']}`")
+    nome_exibicao = str_lit.session_state.get('usuario_atual', 'Usuário').capitalize()
+    perfil_exibicao = str_lit.session_state.get('perfil_atual', 'OPERADOR')
+    str_lit.markdown(f"### Olá, **{nome_exibicao}**")
+    str_lit.markdown(f"Perfil: `👤 {perfil_exibicao}`")
     str_lit.markdown("---")
     
     opcao_menu = str_lit.radio(
@@ -174,7 +179,7 @@ with str_lit.sidebar:
         str_lit.rerun()
 
 def validar_admin():
-    if str_lit.session_state["perfil_atual"] != "ADMIN":
+    if str_lit.session_state.get("perfil_atual", "") != "ADMIN":
         str_lit.warning("⚠️ Acesso restrito! Esta função exige perfil de Administrador.")
         return False
     return True
@@ -187,14 +192,15 @@ df = str_lit.session_state["df_estoque"]
 if opcao_menu == "🔍 Pesquisa e Validação":
     
     if str_lit.session_state.get("modo_impressao_congelados", False):
-        str_lit.markdown("""
+        usuario_rel = str_lit.session_state.get('usuario_atual', 'admin').capitalize()
+        str_lit.markdown(f"""
         <div class="report-container">
             <div class="report-header">
                 <h2>📦 WMS Litle - Relatório de Itens Congelados</h2>
-                <p><b>Usuário Emitente:</b> {}</p>
+                <p><b>Usuário Emitente:</b> {usuario_rel}</p>
             </div>
         </div>
-        """.format(str_lit.session_state["usuario_atual"].capitalize()), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
         str_lit.info("💡 Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
         
@@ -242,7 +248,7 @@ if opcao_menu == "🔍 Pesquisa e Validação":
     if not df_filtrado.empty:
         str_lit.dataframe(df_filtrado, use_container_width=True)
         
-        if str_lit.session_state["perfil_atual"] == "ADMIN":
+        if str_lit.session_state.get("perfil_atual", "") == "ADMIN":
             str_lit.markdown("---")
             str_lit.markdown("### 🗑️ Gerenciamento Rápido (Exclusão por Linha)")
             
@@ -460,14 +466,15 @@ elif opcao_menu == "💾 Backup e Histórico":
 elif opcao_menu == "📖 Manual de Instruções":
     
     if str_lit.session_state.get("modo_impressao_manual", False):
-        str_lit.markdown("""
+        usuario_rel = str_lit.session_state.get('usuario_atual', 'admin').capitalize()
+        str_lit.markdown(f"""
         <div class="report-container">
             <div class="report-header">
                 <h2>📖 WMS Litle - Manual de Instruções e Operação</h2>
-                <p><b>Usuário Emitente:</b> {}</p>
+                <p><b>Usuário Emitente:</b> {usuario_rel}</p>
             </div>
         </div>
-        """.format(str_lit.session_state["usuario_atual"].capitalize()), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
         str_lit.info("💡 Pressione **Ctrl + P** no seu teclado para enviar diretamente à impressora ou salvar em PDF.")
         
