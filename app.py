@@ -52,27 +52,32 @@ if "perfil_atual" not in str_lit.session_state:
 # =========================================================
 # FUNÇÕES DE DADOS (WMS)
 # =========================================================
+COLUNAS_OFICIAIS = ["GARANTIA", "CODINTER", "CODFAB", "DESCRICAO", "CAIXA", "RUA", "BOX", "ALTURA", "PALLETE", "PLT"]
+
 def carregar_dados():
     if os.path.exists(ARQUIVO_EXCEL):
         try:
             df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             df.columns = [c.strip().upper() for c in df.columns]
-            # Compatibilidade caso a base antiga não tenha a coluna COD_INTERNO
-            if "COD_INTERNO" not in df.columns:
-                df["COD_INTERNO"] = ""
-            return df
+            # Garante que todas as colunas oficiais existam no DataFrame
+            for col in COLUNAS_OFICIAIS:
+                if col not in df.columns:
+                    df[col] = ""
+            return df[COLUNAS_OFICIAIS]
         except Exception as e:
             str_lit.error(f"Erro ao carregar o arquivo Excel: {e}")
     
     dados_exemplo = {
         "GARANTIA": ["GARANTIA A", "GARANTIA B", "GARANTIA A"],
-        "CODIGO": ["PROD001", "PROD002", "PROD003"],
-        "COD_INTERNO": ["INT1001", "INT1002", "INT1003"],
+        "CODINTER": ["INT1001", "INT1002", "INT1003"],
+        "CODFAB": ["PROD001", "PROD002", "PROD003"],
         "DESCRICAO": ["Amortecedor Dianteiro", "Pastilha de Freio", "Filtro de Óleo"],
+        "CAIXA": ["CX01", "CX02", "CX03"],
         "RUA": ["R01", "R02", "R03"],
         "BOX": ["B05", "B12", "B01"],
         "ALTURA": ["A1", "A2", "A3"],
-        "QUANTIDADE": ["10", "25", "50"]
+        "PALLETE": ["P01", "P02", "P03"],
+        "PLT": ["01", "02", "03"]
     }
     df_ex = pd.DataFrame(dados_exemplo)
     df_ex.to_excel(ARQUIVO_EXCEL, index=False)
@@ -85,7 +90,7 @@ if "df_estoque" not in str_lit.session_state:
     str_lit.session_state["df_estoque"] = carregar_dados()
 
 if "linhas_congeladas" not in str_lit.session_state:
-    str_lit.session_state["linhas_congeladas"] = pd.DataFrame()
+    str_lit.session_state["linhas_congeladas"] = pd.DataFrame(columns=COLUNAS_OFICIAIS)
 
 # =========================================================
 # ESTILOS CSS E LAYOUT DE IMPRESSÃO PROFISSIONAL
@@ -235,7 +240,7 @@ if opcao_menu == "🔍 Pesquisa e Validação":
     with c1:
         filtro_garantia = str_lit.selectbox("Filtrar por Garantia", garantias_disponiveis)
     with c2:
-        termo_busca = str_lit.text_input("Digite o Código, Cód. Interno, Descrição ou Endereço").strip()
+        termo_busca = str_lit.text_input("Digite CODINTER, CODFAB, Descrição ou Endereço").strip()
     with c3:
         termo_validacao = str_lit.text_input("Validação por Bipe/Código").strip()
 
@@ -260,11 +265,15 @@ if opcao_menu == "🔍 Pesquisa e Validação":
             with col_dados:
                 str_lit.markdown(
                     f"**Garantia:** `{row.get('GARANTIA', 'N/D')}` | "
-                    f"**Cód:** `{row.get('CODIGO', 'N/D')}` | "
-                    f"**Cód. Interno:** `{row.get('COD_INTERNO', 'N/D')}` | "
+                    f"**Codinter:** `{row.get('CODINTER', 'N/D')}` | "
+                    f"**Codfab:** `{row.get('CODFAB', 'N/D')}` | "
                     f"**Descrição:** {row.get('DESCRICAO', 'N/D')} | "
-                    f"**Endereço:** Rua **{row.get('RUA', 'N/D')}**, Box **{row.get('BOX', 'N/D')}**, Altura **{row.get('ALTURA', 'N/D')}** | "
-                    f"**Qtd:** {row.get('QUANTIDADE', 'N/D')}"
+                    f"**Caixa:** `{row.get('CAIXA', 'N/D')}` | "
+                    f"**Rua:** `{row.get('RUA', 'N/D')}` | "
+                    f"**Box:** `{row.get('BOX', 'N/D')}` | "
+                    f"**Altura:** `{row.get('ALTURA', 'N/D')}` | "
+                    f"**Pallete:** `{row.get('PALLETE', 'N/D')}` | "
+                    f"**Plt:** `{row.get('PLT', 'N/D')}`"
                 )
             
             if is_admin:
@@ -285,7 +294,7 @@ if opcao_menu == "🔍 Pesquisa e Validação":
                 str_lit.success("Linhas congeladas com sucesso!")
         with col_cong2:
             if str_lit.button("🗑️ Limpar Congelados", use_container_width=True):
-                str_lit.session_state["linhas_congeladas"] = pd.DataFrame(columns=df.columns)
+                str_lit.session_state["linhas_congeladas"] = pd.DataFrame(columns=COLUNAS_OFICIAIS)
                 str_lit.success("Lista congelada limpa!")
     else:
         str_lit.info("Nenhum registro encontrado com os filtros informados.")
@@ -316,7 +325,7 @@ elif opcao_menu == "🚚 Mover Produto":
     str_lit.header("🚚 Movimentação de Endereço de Produto")
     
     with str_lit.form("form_mover"):
-        codigo_mover = str_lit.text_input("Código ou Cód. Interno do Produto a Mover").strip().upper()
+        codigo_mover = str_lit.text_input("Informe CODINTER ou CODFAB do Produto a Mover").strip().upper()
         
         c_r, c_b, c_a = str_lit.columns(3)
         with c_r:
@@ -332,17 +341,16 @@ elif opcao_menu == "🚚 Mover Produto":
             if not codigo_mover or not nova_rua or not novo_box or not nova_altura:
                 str_lit.warning("Preencha todos os campos obrigatórios para movimentação.")
             else:
-                if "CODIGO" in df.columns and "COD_INTERNO" in df.columns:
-                    mask = (df["CODIGO"] == codigo_mover) | (df["COD_INTERNO"] == codigo_mover)
-                    if mask.any():
-                        df.loc[mask, "RUA"] = nova_rua
-                        df.loc[mask, "BOX"] = novo_box
-                        df.loc[mask, "ALTURA"] = nova_altura
-                        salvar_dados(df)
-                        str_lit.session_state["df_estoque"] = df
-                        str_lit.success(f"✅ Produto {codigo_mover} movimentado com sucesso para Rua: {nova_rua}, Box: {novo_box}, Altura: {nova_altura}!")
-                    else:
-                        str_lit.error(f"❌ Código ou Cód. Interno '{codigo_mover}' não encontrado na base.")
+                mask = (df["CODINTER"] == codigo_mover) | (df["CODFAB"] == codigo_mover)
+                if mask.any():
+                    df.loc[mask, "RUA"] = nova_rua
+                    df.loc[mask, "BOX"] = novo_box
+                    df.loc[mask, "ALTURA"] = nova_altura
+                    salvar_dados(df)
+                    str_lit.session_state["df_estoque"] = df
+                    str_lit.success(f"✅ Produto {codigo_mover} movimentado com sucesso para Rua: {nova_rua}, Box: {novo_box}, Altura: {nova_altura}!")
+                else:
+                    str_lit.error(f"❌ Código '{codigo_mover}' não encontrado na base.")
 
 # =========================================================
 # TELA 3: CADASTRAR / OCUPAR
@@ -351,41 +359,47 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar Novo Item ou Ocupar Endereço")
     if validar_admin():
         with str_lit.form("form_cadastrar"):
-            c_g, c_c, c_ci = str_lit.columns(3)
+            c_g, c_ci, c_cf = str_lit.columns(3)
             with c_g:
-                cad_garantia = str_lit.text_input("Garantia").strip().upper()
-            with c_c:
-                cad_codigo = str_lit.text_input("Código do Produto").strip().upper()
+                cad_garantia = str_lit.text_input("GARANTIA").strip().upper()
             with c_ci:
-                cad_cod_interno = str_lit.text_input("Código Interno").strip().upper()
+                cad_codinter = str_lit.text_input("CODINTER").strip().upper()
+            with c_cf:
+                cad_codfab = str_lit.text_input("CODFAB").strip().upper()
                 
-            cad_descricao = str_lit.text_input("Descrição do Produto").strip()
+            cad_descricao = str_lit.text_input("DESCRICAO").strip()
             
-            cc1, cc2, cc3, cc4 = str_lit.columns(4)
+            cc1, cc2, cc3, cc4, cc5, cc6 = str_lit.columns(6)
             with cc1:
-                cad_rua = str_lit.text_input("Rua").strip().upper()
+                cad_caixa = str_lit.text_input("CAIXA").strip().upper()
             with cc2:
-                cad_box = str_lit.text_input("Box").strip().upper()
+                cad_rua = str_lit.text_input("RUA").strip().upper()
             with cc3:
-                cad_altura = str_lit.text_input("Altura").strip().upper()
+                cad_box = str_lit.text_input("BOX").strip().upper()
             with cc4:
-                cad_qtd = str_lit.text_input("Quantidade").strip()
+                cad_altura = str_lit.text_input("ALTURA").strip().upper()
+            with cc5:
+                cad_pallete = str_lit.text_input("PALLETE").strip().upper()
+            with cc6:
+                cad_plt = str_lit.text_input("PLT").strip().upper()
                 
             btn_salvar_cadastro = str_lit.form_submit_button("Salvar Novo Cadastro", use_container_width=True)
             
             if btn_salvar_cadastro:
-                if not cad_codigo or not cad_rua:
-                    str_lit.warning("Informe pelo menos o Código e a Rua.")
+                if not cad_codfab and not cad_codinter:
+                    str_lit.warning("Informe pelo menos o CODINTER ou o CODFAB.")
                 else:
                     nova_linha = {
                         "GARANTIA": cad_garantia,
-                        "CODIGO": cad_codigo,
-                        "COD_INTERNO": cad_cod_interno,
+                        "CODINTER": cad_codinter,
+                        "CODFAB": cad_codfab,
                         "DESCRICAO": cad_descricao,
+                        "CAIXA": cad_caixa,
                         "RUA": cad_rua,
                         "BOX": cad_box,
                         "ALTURA": cad_altura,
-                        "QUANTIDADE": cad_qtd
+                        "PALLETE": cad_pallete,
+                        "PLT": cad_plt
                     }
                     df = pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
                     salvar_dados(df)
@@ -398,12 +412,11 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
 elif opcao_menu == "📥 Importar / Atualizar Base":
     str_lit.header("📥 Importação de Nova Base de Estoque")
     if validar_admin():
-        str_lit.write("Faça o upload de uma nova planilha Excel (`.xlsx`) para atualizar a base de dados central.")
+        str_lit.write("Faça o upload de uma nova planilha Excel (`.xlsx`) contendo o cabeçalho oficial.")
         
-        # Gabarito oficial atualizado com COD_INTERNO
         output = io.BytesIO()
-        df_modelo = pd.DataFrame(columns=["GARANTIA", "CODIGO", "COD_INTERNO", "DESCRICAO", "RUA", "BOX", "ALTURA", "QUANTIDADE"])
-        df_modelo.loc[0] = ["GARANTIA A", "PROD001", "INT1001", "Amortecedor Dianteiro", "R01", "B05", "A1", "10"]
+        df_modelo = pd.DataFrame(columns=COLUNAS_OFICIAIS)
+        df_modelo.loc[0] = ["GARANTIA A", "INT1001", "PROD001", "Amortecedor Dianteiro", "CX01", "R01", "B05", "A1", "P01", "01"]
         df_modelo.to_excel(output, index=False)
         output.seek(0)
         
@@ -421,8 +434,11 @@ elif opcao_menu == "📥 Importar / Atualizar Base":
             try:
                 df_novo = pd.read_excel(arquivo_submetido, dtype=str)
                 df_novo.columns = [c.strip().upper() for c in df_novo.columns]
-                if "COD_INTERNO" not in df_novo.columns:
-                    df_novo["COD_INTERNO"] = ""
+                
+                for col in COLUNAS_OFICIAIS:
+                    if col not in df_novo.columns:
+                        df_novo[col] = ""
+                df_novo = df_novo[COLUNAS_OFICIAIS]
                 
                 str_lit.write("Pré-visualização dos novos dados:")
                 str_lit.dataframe(df_novo.head(), use_container_width=True)
@@ -492,11 +508,11 @@ elif opcao_menu == "📖 Manual de Instruções":
         str_lit.markdown("---")
         str_lit.markdown("""
         ### WMS LITLE - MANUAL RÁPIDO DE OPERAÇÃO
-        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços pelo código ou código interno. Administradores contam com botão de exclusão direto em cada linha.
-        2. **Mover Produto:** Altere a localização de itens informando o código/código interno e o novo endereço.
-        3. **Cadastrar / Ocupar:** Adicione novos itens preenchendo todos os campos, incluindo Código Interno (Restrito a Admin).
-        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial contendo as colunas padronizadas (`GARANTIA`, `CODIGO`, `COD_INTERNO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa.
-        5. **Backup e Gerenciamento:** Realize backups de segurança e gerencie operadores e administradores.
+        1. **Pesquisa e Validação:** Utilize os filtros para localizar itens utilizando o cabeçalho padrão (`GARANTIA`, `CODINTER`, `CODFAB`, `DESCRICAO`, `CAIXA`, `RUA`, `BOX`, `ALTURA`, `PALLETE`, `PLT`). Administradores contam com exclusão direta por linha.
+        2. **Mover Produto:** Altere endereços informando o CODINTER ou CODFAB.
+        3. **Cadastrar / Ocupar:** Adicione itens informando os dados completos do layout oficial (Restrito a Admin).
+        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial com o cabeçalho exato e realize a substituição em massa.
+        5. **Backup e Gerenciamento:** Controle acessos e realize backups de segurança.
         """)
         
         str_lit.markdown(f"""
@@ -519,31 +535,17 @@ elif opcao_menu == "📖 Manual de Instruções":
     str_lit.markdown("""
     ### 📌 Guia de Utilização - WMS LITLE
 
-    * **🔍 Pesquisa e Validação (Geral):**
-      * Selecione a **Garantia** desejada para filtrar o escopo inicial.
-      * Digite no campo de **Pesquisa** o código, **código interno**, descrição ou endereço.
-      * Utilize o campo de **Validação** para bipar/digitar o código da peça.
-      * Administradores contam com um **botão de exclusão direto em cada linha** do resultado.
-      * É possível **Congelar** seleções e imprimir relatórios formatados.
+    * **Cabeçalho Oficial do Sistema:**
+      `GARANTIA | CODINTER | CODFAB | DESCRICAO | CAIXA | RUA | BOX | ALTURA | PALLETE | PLT`
+
+    * **🔍 Pesquisa e Validação:**
+      * Filtre por Garantia e pesquise por código ou endereço. Os resultados são exibidos em linha com botão de exclusão integrado (para administradores).
 
     * **🚚 Mover Produto:**
-      * Informe o código ou código interno do produto.
-      * Preencha os novos dados de **Rua**, **Box** e **Altura**.
+      * Atualize a localização de itens informando o CODINTER ou CODFAB e os novos dados de endereço.
 
-    * **➕ Cadastrar / Ocupar (ADMIN):**
-      * Permite cadastrar novos registros informando Código, **Código Interno**, Descrição e Endereço.
-
-    * **📥 Importar / Atualizar Base em Massa (ADMIN):**
-      * **Baixar Planilha Modelo Oficial:** Disponibiliza o gabarito com os títulos exatos (`GARANTIA`, `CODIGO`, `COD_INTERNO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`).
-
-    * **📊 Sugestão de Inventário Cíclico:**
-      * Gera amostragem orientada para auditoria preventiva.
-
-    * **💾 Backup e Histórico:**
-      * Permite baixar cópia de segurança em `.xlsx`.
-
-    * **👥 Gerenciar Usuários (ADMIN):**
-      * Gerenciamento de acessos e perfis.
+    * **➕ Cadastrar / Ocupar & 📥 Importar Base (ADMIN):**
+      * Módulos adaptados integralmente ao novo layout de colunas para cadastros manuais e importações via planilha modelo oficial.
     """)
 
 # =========================================================
