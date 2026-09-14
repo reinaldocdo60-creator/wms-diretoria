@@ -42,7 +42,6 @@ def salvar_usuarios(usuarios):
 if "usuarios_db" not in str_lit.session_state:
     str_lit.session_state["usuarios_db"] = carregar_usuarios()
 
-# Garantia de inicialização segura das variáveis de sessão
 if "autenticado" not in str_lit.session_state:
     str_lit.session_state["autenticado"] = False
 if "usuario_atual" not in str_lit.session_state:
@@ -58,6 +57,9 @@ def carregar_dados():
         try:
             df = pd.read_excel(ARQUIVO_EXCEL, dtype=str)
             df.columns = [c.strip().upper() for c in df.columns]
+            # Compatibilidade caso a base antiga não tenha a coluna COD_INTERNO
+            if "COD_INTERNO" not in df.columns:
+                df["COD_INTERNO"] = ""
             return df
         except Exception as e:
             str_lit.error(f"Erro ao carregar o arquivo Excel: {e}")
@@ -65,6 +67,7 @@ def carregar_dados():
     dados_exemplo = {
         "GARANTIA": ["GARANTIA A", "GARANTIA B", "GARANTIA A"],
         "CODIGO": ["PROD001", "PROD002", "PROD003"],
+        "COD_INTERNO": ["INT1001", "INT1002", "INT1003"],
         "DESCRICAO": ["Amortecedor Dianteiro", "Pastilha de Freio", "Filtro de Óleo"],
         "RUA": ["R01", "R02", "R03"],
         "BOX": ["B05", "B12", "B01"],
@@ -232,7 +235,7 @@ if opcao_menu == "🔍 Pesquisa e Validação":
     with c1:
         filtro_garantia = str_lit.selectbox("Filtrar por Garantia", garantias_disponiveis)
     with c2:
-        termo_busca = str_lit.text_input("Digite o Código, Descrição ou Endereço").strip()
+        termo_busca = str_lit.text_input("Digite o Código, Cód. Interno, Descrição ou Endereço").strip()
     with c3:
         termo_validacao = str_lit.text_input("Validação por Bipe/Código").strip()
 
@@ -248,7 +251,6 @@ if opcao_menu == "🔍 Pesquisa e Validação":
     if not df_filtrado.empty:
         is_admin = (str_lit.session_state.get("perfil_atual", "") == "ADMIN")
         
-        # Exibe cada registro em formato de linha interativa com o botão de exclusão integrado
         for idx, row in df_filtrado.iterrows():
             if is_admin:
                 col_dados, col_acao = str_lit.columns([5, 1])
@@ -258,7 +260,8 @@ if opcao_menu == "🔍 Pesquisa e Validação":
             with col_dados:
                 str_lit.markdown(
                     f"**Garantia:** `{row.get('GARANTIA', 'N/D')}` | "
-                    f"**Código:** `{row.get('CODIGO', 'N/D')}` | "
+                    f"**Cód:** `{row.get('CODIGO', 'N/D')}` | "
+                    f"**Cód. Interno:** `{row.get('COD_INTERNO', 'N/D')}` | "
                     f"**Descrição:** {row.get('DESCRICAO', 'N/D')} | "
                     f"**Endereço:** Rua **{row.get('RUA', 'N/D')}**, Box **{row.get('BOX', 'N/D')}**, Altura **{row.get('ALTURA', 'N/D')}** | "
                     f"**Qtd:** {row.get('QUANTIDADE', 'N/D')}"
@@ -313,7 +316,7 @@ elif opcao_menu == "🚚 Mover Produto":
     str_lit.header("🚚 Movimentação de Endereço de Produto")
     
     with str_lit.form("form_mover"):
-        codigo_mover = str_lit.text_input("Código do Produto a Mover").strip().upper()
+        codigo_mover = str_lit.text_input("Código ou Cód. Interno do Produto a Mover").strip().upper()
         
         c_r, c_b, c_a = str_lit.columns(3)
         with c_r:
@@ -329,8 +332,8 @@ elif opcao_menu == "🚚 Mover Produto":
             if not codigo_mover or not nova_rua or not novo_box or not nova_altura:
                 str_lit.warning("Preencha todos os campos obrigatórios para movimentação.")
             else:
-                if "CODIGO" in df.columns:
-                    mask = df["CODIGO"] == codigo_mover
+                if "CODIGO" in df.columns and "COD_INTERNO" in df.columns:
+                    mask = (df["CODIGO"] == codigo_mover) | (df["COD_INTERNO"] == codigo_mover)
                     if mask.any():
                         df.loc[mask, "RUA"] = nova_rua
                         df.loc[mask, "BOX"] = novo_box
@@ -339,7 +342,7 @@ elif opcao_menu == "🚚 Mover Produto":
                         str_lit.session_state["df_estoque"] = df
                         str_lit.success(f"✅ Produto {codigo_mover} movimentado com sucesso para Rua: {nova_rua}, Box: {novo_box}, Altura: {nova_altura}!")
                     else:
-                        str_lit.error(f"❌ Código {codigo_mover} não encontrado na base.")
+                        str_lit.error(f"❌ Código ou Cód. Interno '{codigo_mover}' não encontrado na base.")
 
 # =========================================================
 # TELA 3: CADASTRAR / OCUPAR
@@ -348,11 +351,13 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
     str_lit.header("➕ Cadastrar Novo Item ou Ocupar Endereço")
     if validar_admin():
         with str_lit.form("form_cadastrar"):
-            c_g, c_c = str_lit.columns(2)
+            c_g, c_c, c_ci = str_lit.columns(3)
             with c_g:
                 cad_garantia = str_lit.text_input("Garantia").strip().upper()
             with c_c:
                 cad_codigo = str_lit.text_input("Código do Produto").strip().upper()
+            with c_ci:
+                cad_cod_interno = str_lit.text_input("Código Interno").strip().upper()
                 
             cad_descricao = str_lit.text_input("Descrição do Produto").strip()
             
@@ -375,6 +380,7 @@ elif opcao_menu == "➕ Cadastrar / Ocupar":
                     nova_linha = {
                         "GARANTIA": cad_garantia,
                         "CODIGO": cad_codigo,
+                        "COD_INTERNO": cad_cod_interno,
                         "DESCRICAO": cad_descricao,
                         "RUA": cad_rua,
                         "BOX": cad_box,
@@ -394,10 +400,10 @@ elif opcao_menu == "📥 Importar / Atualizar Base":
     if validar_admin():
         str_lit.write("Faça o upload de uma nova planilha Excel (`.xlsx`) para atualizar a base de dados central.")
         
-        # Gabarito oficial utilizando exatamente as colunas padrão do WMS
+        # Gabarito oficial atualizado com COD_INTERNO
         output = io.BytesIO()
-        df_modelo = pd.DataFrame(columns=["GARANTIA", "CODIGO", "DESCRICAO", "RUA", "BOX", "ALTURA", "QUANTIDADE"])
-        df_modelo.loc[0] = ["GARANTIA A", "PROD001", "Amortecedor Dianteiro", "R01", "B05", "A1", "10"]
+        df_modelo = pd.DataFrame(columns=["GARANTIA", "CODIGO", "COD_INTERNO", "DESCRICAO", "RUA", "BOX", "ALTURA", "QUANTIDADE"])
+        df_modelo.loc[0] = ["GARANTIA A", "PROD001", "INT1001", "Amortecedor Dianteiro", "R01", "B05", "A1", "10"]
         df_modelo.to_excel(output, index=False)
         output.seek(0)
         
@@ -415,6 +421,8 @@ elif opcao_menu == "📥 Importar / Atualizar Base":
             try:
                 df_novo = pd.read_excel(arquivo_submetido, dtype=str)
                 df_novo.columns = [c.strip().upper() for c in df_novo.columns]
+                if "COD_INTERNO" not in df_novo.columns:
+                    df_novo["COD_INTERNO"] = ""
                 
                 str_lit.write("Pré-visualização dos novos dados:")
                 str_lit.dataframe(df_novo.head(), use_container_width=True)
@@ -484,11 +492,11 @@ elif opcao_menu == "📖 Manual de Instruções":
         str_lit.markdown("---")
         str_lit.markdown("""
         ### WMS LITLE - MANUAL RÁPIDO DE OPERAÇÃO
-        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços. Use o campo de validação para conferir o código bipeado da peça separada. Administradores contam com um botão de exclusão direto em cada linha do resultado pesquisado.
-        2. **Mover Produto:** Altere a localização de itens informando o código e o novo endereço de rua, box e altura.
-        3. **Cadastrar / Ocupar:** Adicione novos itens à base preenchendo todos os campos obrigatórios (Restrito a Admin).
-        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial com os cabeçalhos padrão (`GARANTIA`, `CODIGO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa via arquivo Excel (Restrito a Admin).
-        5. **Backup e Gerenciamento:** Realize backups de segurança e gerencie usuários e perfis com facilidade.
+        1. **Pesquisa e Validação:** Utilize os filtros por Garantia e termos de busca para localizar rapidamente itens e endereços pelo código ou código interno. Administradores contam com botão de exclusão direto em cada linha.
+        2. **Mover Produto:** Altere a localização de itens informando o código/código interno e o novo endereço.
+        3. **Cadastrar / Ocupar:** Adicione novos itens preenchendo todos os campos, incluindo Código Interno (Restrito a Admin).
+        4. **Importar / Atualizar Base:** Baixe a planilha modelo oficial contendo as colunas padronizadas (`GARANTIA`, `CODIGO`, `COD_INTERNO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) e faça a substituição em massa.
+        5. **Backup e Gerenciamento:** Realize backups de segurança e gerencie operadores e administradores.
         """)
         
         str_lit.markdown(f"""
@@ -513,30 +521,29 @@ elif opcao_menu == "📖 Manual de Instruções":
 
     * **🔍 Pesquisa e Validação (Geral):**
       * Selecione a **Garantia** desejada para filtrar o escopo inicial.
-      * Digite no campo de **Pesquisa** o código, descrição ou endereço.
-      * Utilize o campo de **Validação** para bipar/digitar o código da peça separada e confirmar se ela pertence ao grupo consultado.
-      * Administradores contam com um **botão de exclusão direto em cada linha** do resultado da pesquisa.
-      * É possível **Congelar** linhas da pesquisa e imprimir o relatório formatado.
+      * Digite no campo de **Pesquisa** o código, **código interno**, descrição ou endereço.
+      * Utilize o campo de **Validação** para bipar/digitar o código da peça.
+      * Administradores contam com um **botão de exclusão direto em cada linha** do resultado.
+      * É possível **Congelar** seleções e imprimir relatórios formatados.
 
     * **🚚 Mover Produto:**
-      * Informe o código interno ou do fabricante do produto.
-      * Preencha os novos dados de **Rua**, **Box** e **Altura** para atualizar o mapeamento em tempo real.
+      * Informe o código ou código interno do produto.
+      * Preencha os novos dados de **Rua**, **Box** e **Altura**.
 
     * **➕ Cadastrar / Ocupar (ADMIN):**
-      * Permite adicionar novos registros e endereçar itens na base de dados do WMS.
+      * Permite cadastrar novos registros informando Código, **Código Interno**, Descrição e Endereço.
 
     * **📥 Importar / Atualizar Base em Massa (ADMIN):**
-      * **Baixar Planilha Modelo Oficial:** Disponibiliza o gabarito com os títulos exatos (`GARANTIA`, `CODIGO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`) exigidos pelo sistema.
-      * Permite o upload do arquivo preenchido para substituir e atualizar instantaneamente toda a base central.
+      * **Baixar Planilha Modelo Oficial:** Disponibiliza o gabarito com os títulos exatos (`GARANTIA`, `CODIGO`, `COD_INTERNO`, `DESCRICAO`, `RUA`, `BOX`, `ALTURA`, `QUANTIDADE`).
 
     * **📊 Sugestão de Inventário Cíclico:**
-      * Gera uma amostragem inicial orientada para auditoria preventiva.
+      * Gera amostragem orientada para auditoria preventiva.
 
     * **💾 Backup e Histórico:**
-      * Permite baixar a cópia de segurança atual da base de dados em formato `.xlsx`.
+      * Permite baixar cópia de segurança em `.xlsx`.
 
     * **👥 Gerenciar Usuários (ADMIN):**
-      * Permite cadastrar novos operadores e administradores ou remover acessos existentes.
+      * Gerenciamento de acessos e perfis.
     """)
 
 # =========================================================
